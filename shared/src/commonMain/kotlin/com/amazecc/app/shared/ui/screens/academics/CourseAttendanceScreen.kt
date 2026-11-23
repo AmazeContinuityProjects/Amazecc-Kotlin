@@ -50,6 +50,35 @@ import com.amazecc.app.shared.utils.SlotInfo
 import com.amazecc.app.shared.utils.parseViewLink
 import kotlinx.serialization.json.*
 
+/**
+ * D-189: whether VTOP actually published a percentage for this course.
+ *
+ * A merged embedded course carries only the two halves' summed counts; its printed percentage is
+ * deliberately blank. Parsing that blank with `?: 0.0` used to paint a real 0% gauge, a DANGER
+ * badge and a confident predictor. A genuine "0" is a published figure and stays a DANGER 0% —
+ * only an absent figure becomes [predictorAvailable] = false.
+ */
+internal data class CourseAttendanceDisplay(
+    val currentPct: Double?,
+    val statusLabel: String,
+    val predictorAvailable: Boolean,
+) {
+    val hasPublishedPct: Boolean get() = currentPct != null
+}
+
+internal fun courseAttendanceDisplay(rawPercentage: String?): CourseAttendanceDisplay {
+    val pct = rawPercentage?.replace("%", "")?.trim()?.toDoubleOrNull()
+    return if (pct == null) {
+        CourseAttendanceDisplay(currentPct = null, statusLabel = "NOT PUBLISHED", predictorAvailable = false)
+    } else {
+        CourseAttendanceDisplay(
+            currentPct = pct,
+            statusLabel = if (pct >= 75) "SAFE" else "DANGER",
+            predictorAvailable = true,
+        )
+    }
+}
+
 @Composable
 fun CourseAttendanceScreen() {
     val colors = AmazeTheme.colors
@@ -196,7 +225,10 @@ fun EmbeddedCourseAttendanceView(course: CourseAttendance) {
     val predictedAttended = course.attendedClasses + (futureCount - skipCount)
     val predictedTotal = course.totalClasses + futureCount
     val predictedPct = if (predictedTotal > 0) predictedAttended.toDouble() / predictedTotal * 100 else 0.0
-    val currentPct = course.attendancePercentage.replace("%", "").toDoubleOrNull() ?: 0.0
+    // D-189: no published percentage (the merged two-half case) is NOT a real 0%. The gauge and
+    // predictor below branch on `display` so neither can show a fabricated figure.
+    val display = remember(course.attendancePercentage) { courseAttendanceDisplay(course.attendancePercentage) }
+    val currentPct = display.currentPct ?: 0.0
 
     // Independent What-If state
     var whatIfAttend by remember { mutableStateOf(0f) }
@@ -223,13 +255,14 @@ fun EmbeddedCourseAttendanceView(course: CourseAttendance) {
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Box(contentAlignment = Alignment.Center, modifier = Modifier.size(160.dp)) {
+                    val hasPct = display.hasPublishedPct
                     val animatedPct by animateFloatAsState(
-                        targetValue = currentPct.toFloat(),
+                        targetValue = if (hasPct) currentPct.toFloat() else 0f,
                         animationSpec = tween(1500)
                     )
                     val sweepAngle = (animatedPct / 100f) * 240f
                     val baseColor = colors.border
-                    val progressColor = projectedColor(currentPct, colors)
+                    val progressColor = if (hasPct) projectedColor(currentPct, colors) else colors.textMuted
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         drawArc(
                             color = baseColor,
@@ -238,17 +271,21 @@ fun EmbeddedCourseAttendanceView(course: CourseAttendance) {
                             useCenter = false,
                             style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
                         )
-                        drawArc(
-                            color = progressColor,
-                            startAngle = 150f,
-                            sweepAngle = sweepAngle,
-                            useCenter = false,
-                            style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
-                        )
+                        // No arc at all when nothing was published — an empty ring is honest, a
+                        // zero-length coloured arc still reads as a 0% measurement.
+                        if (hasPct) {
+                            drawArc(
+                                color = progressColor,
+                                startAngle = 150f,
+                                sweepAngle = sweepAngle,
+                                useCenter = false,
+                                style = Stroke(width = 16.dp.toPx(), cap = StrokeCap.Round)
+                            )
+                        }
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
-                            pctFormatted(currentPct),
+                            if (hasPct) pctFormatted(currentPct) else "—",
                             style = AmazeTheme.typography.display.copy(
                                 fontWeight = FontWeight.Black,
                                 fontSize = AmazeTheme.fontSize.display,
@@ -256,10 +293,14 @@ fun EmbeddedCourseAttendanceView(course: CourseAttendance) {
                             )
                         )
                         Text(
-                            if (currentPct >= 75) "SAFE" else "DANGER",
+                            display.statusLabel,
                             style = AmazeTheme.typography.caption.copy(
                                 fontWeight = FontWeight.Bold,
-                                color = if (currentPct >= 75) colors.success else colors.danger
+                                color = when {
+                                    !hasPct -> colors.textMuted
+                                    currentPct >= 75 -> colors.success
+                                    else -> colors.danger
+                                }
                             )
                         )
                     }
@@ -327,24 +368,48 @@ fun EmbeddedCourseAttendanceView(course: CourseAttendance) {
         }
 
         when (activeTab) {
-            "Predictor" -> PredictorSection(
-                mode = mode,
-                onModeChange = { mode = it },
-                currentPct = currentPct,
-                predictedPct = predictedPct,
-                futureClassDates = futureClassDates,
-                skipDates = skipDates,
-                onSkipToggle = { d -> skipDates = if (d in skipDates) skipDates - d else skipDates + d },
-                whatIfAttend = whatIfAttend,
-                onWhatIfAttendChange = { whatIfAttend = it },
-                whatIfMiss = whatIfMiss,
-                onWhatIfMissChange = { whatIfMiss = it },
-                whatIfPct = whatIfPct,
-                whatIfAttended = whatIfAttended,
-                whatIfTotal = whatIfTotal,
-                colors = colors,
-                multiplier = multiplier
-            )
+            "Predictor" -> {
+                if (display.predictorAvailable) {
+                    PredictorSection(
+                        mode = mode,
+                        onModeChange = { mode = it },
+                        currentPct = currentPct,
+                        predictedPct = predictedPct,
+                        futureClassDates = futureClassDates,
+                        skipDates = skipDates,
+                        onSkipToggle = { d -> skipDates = if (d in skipDates) skipDates - d else skipDates + d },
+                        whatIfAttend = whatIfAttend,
+                        onWhatIfAttendChange = { whatIfAttend = it },
+                        whatIfMiss = whatIfMiss,
+                        onWhatIfMissChange = { whatIfMiss = it },
+                        whatIfPct = whatIfPct,
+                        whatIfAttended = whatIfAttended,
+                        whatIfTotal = whatIfTotal,
+                        colors = colors,
+                        multiplier = multiplier
+                    )
+                } else {
+                    // D-189: two attendance entries with no published percentage (an embedded
+                    // merged course). Deriving a predictor from their summed counts would invent
+                    // a single course figure; say so instead of showing a confident 0% projection.
+                    AmazeCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                "Attendance not published",
+                                style = AmazeTheme.typography.subheading.copy(
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.textPrimary
+                                )
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                "This course has two attendance entries. Each half's own figure is on the course detail screen; a single predictor is not available.",
+                                style = AmazeTheme.typography.caption.copy(color = colors.textSecondary)
+                            )
+                        }
+                    }
+                }
+            }
             "Log" -> LogSection(course, colors)
             "Notes" -> NotesSection(courseCode, colors)
         }

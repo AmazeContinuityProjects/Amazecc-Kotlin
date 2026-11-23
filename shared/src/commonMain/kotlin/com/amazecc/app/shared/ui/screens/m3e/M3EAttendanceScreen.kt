@@ -64,6 +64,16 @@ fun M3EAttendanceScreen(
 ) {
     val colors = M3ETheme.colors
 
+    // D-189 follow-up: only real WARNING/CRITICAL figures are "at risk". A merged pair has no single
+    // percentage, and a course with no published figure is NEUTRAL, so neither pads this view. A lone
+    // Embedded Theory/Lab half with a real low figure keeps its own tone and stays here. The
+    // predicate lives on the state model so the stateless screen and the host bridge agree.
+    val visibleCourses = if (state.activeFilter == AttendanceFilter.AT_RISK) {
+        state.courses.filter { it.isAtRisk }
+    } else {
+        state.courses
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -197,7 +207,7 @@ fun M3EAttendanceScreen(
                         M3EAttendanceLoadingSkeleton()
                     }
                 }
-                state.courses.isEmpty() -> {
+                visibleCourses.isEmpty() -> {
                     item(key = "empty_state") {
                         M3ESurfaceCard(
                             modifier = Modifier.fillMaxWidth(),
@@ -218,7 +228,7 @@ fun M3EAttendanceScreen(
                 }
                 else -> {
                     items(
-                        items = state.courses,
+                        items = visibleCourses,
                         key = { it.courseCode }
                     ) { course ->
                         M3ECourseAttendanceCard(
@@ -353,6 +363,15 @@ private fun M3ECourseAttendanceCard(
 ) {
     val colors = M3ETheme.colors
 
+    // D-189 follow-up: only a genuinely merged pair carries a 0.0 sentinel in `percentage` (the sum
+    // of two different classes, not one attendance figure), with its real figures in the half fields.
+    // A lone Embedded Theory/Lab half is NOT a pair — it has one real published percentage and must
+    // render it (and stay eligible for At Risk) just like any standalone course.
+    val isPair = course.isMergedPair
+    // A standalone course with no published figure must not fabricate a 0.00% headline or a 0% bar.
+    // totalClasses > 0 means a real published figure, including a genuine 0% (attended = 0).
+    val hasPublishedFigure = course.totalClasses > 0
+
     val statusColor = when (course.tone) {
         M3ECardTone.GOOD -> colors.success
         M3ECardTone.WARNING -> colors.warning
@@ -396,13 +415,54 @@ private fun M3ECourseAttendanceCard(
                     )
                 }
 
-                // Headline Attendance %
-                Text(
-                    text = course.percentage.toFixed(2, "%"),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = statusColor
-                )
+                // Headline Attendance % — a pair gets its two halves' own figures, never the
+                // 0.00% sentinel. Standalone cards keep their single published percentage.
+                if (isPair) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        val theory = course.theoryPct
+                        val lab = course.labPct
+                        if (theory == null && lab == null) {
+                            Text(
+                                text = "Attendance not published",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = statusColor
+                            )
+                        } else {
+                            theory?.let {
+                                Text(
+                                    text = "Theory ${it.toFixed(2, "%")}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusColor
+                                )
+                            }
+                            lab?.let {
+                                Text(
+                                    text = "Lab ${it.toFixed(2, "%")}",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusColor
+                                )
+                            }
+                        }
+                    }
+                } else if (hasPublishedFigure) {
+                    Text(
+                        text = course.percentage.toFixed(2, "%"),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = statusColor
+                    )
+                } else {
+                    // No published figure: honest absence, never a fabricated 0.00%.
+                    Text(
+                        text = "Attendance not published",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = statusColor
+                    )
+                }
             }
 
             // Course Title
@@ -413,14 +473,39 @@ private fun M3ECourseAttendanceCard(
                 color = colors.onSurface
             )
 
-            // Signature M3E Wavy Linear Progress Bar!
-            M3EWavyLinearProgress(
-                progress = (course.percentage / 100.0).toFloat(),
-                activeColor = statusColor,
-                trackColor = colors.surfaceContainerHighest,
-                label = "Attendance",
-                safetyThreshold = targetPercentage / 100f
-            )
+            // Signature M3E Wavy Linear Progress Bar! A pair shows one bar per published half;
+            // an unpublished half gets no bar at all (a 0% bar would be a fabricated figure).
+            if (isPair) {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    course.theoryPct?.let { theory ->
+                        M3EWavyLinearProgress(
+                            progress = (theory / 100.0).toFloat(),
+                            activeColor = statusColor,
+                            trackColor = colors.surfaceContainerHighest,
+                            label = "Theory attendance",
+                            safetyThreshold = targetPercentage / 100f
+                        )
+                    }
+                    course.labPct?.let { lab ->
+                        M3EWavyLinearProgress(
+                            progress = (lab / 100.0).toFloat(),
+                            activeColor = statusColor,
+                            trackColor = colors.surfaceContainerHighest,
+                            label = "Lab attendance",
+                            safetyThreshold = targetPercentage / 100f
+                        )
+                    }
+                }
+            } else if (hasPublishedFigure) {
+                M3EWavyLinearProgress(
+                    progress = (course.percentage / 100.0).toFloat(),
+                    activeColor = statusColor,
+                    trackColor = colors.surfaceContainerHighest,
+                    label = "Attendance",
+                    safetyThreshold = targetPercentage / 100f
+                )
+            }
+            // No published figure: deliberately no bar — a 0% bar would be a fabricated figure.
 
             // Classes Count & Bunk Summary
             Row(
@@ -459,12 +544,15 @@ private fun createMockAttendanceState() = M3EAttendanceState(
             badge = "Embedded",
             attendedClasses = 28,
             totalClasses = 30,
-            percentage = 93.3,
-            tone = M3ECardTone.GOOD,
+            percentage = 0.0, // sentinel only — a pair is two classes, never one blended figure
+            tone = M3ECardTone.NEUTRAL,
             faculty = "Prof. Sundar",
             slot = "B1+TB1",
-            bunkSummary = "Can bunk 6 more classes safely",
-            isEmbedded = true
+            bunkSummary = "Theory 93% · Lab 89%",
+            isEmbedded = true,
+            theoryPct = 93.3,
+            labPct = 89.0,
+            isMergedPair = true
         ),
         M3ECourseAttendanceCardState(
             courseCode = "MAT2001",

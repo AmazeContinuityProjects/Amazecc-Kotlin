@@ -137,4 +137,112 @@ class GradeHistoryUiStateTest {
         assertEquals("8.0", first.weightage)
         assertEquals(26.0, com.amazecc.app.shared.domain.GradeHistory.weightedTotal(components))
     }
+
+    // ── D-189 G4: embedded halves reconciled against the one published total ──────────
+
+    private fun publishedEmbedded(grandTotal: String = "89") = AllGradesRes(
+        semesters = mapOf(
+            "CH20252601" to SemesterGradeResult(
+                gpa = "9.0",
+                grades = listOf(
+                    GradeItem(
+                        courseCode = "BAEEE101", courseTitle = "Basic Engineering",
+                        courseType = "Embedded Theory", credits = "4.0",
+                        grandTotal = grandTotal, grade = "A",
+                        details = breakdown(), range = range(),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    private fun markedHalf(code: String, half: String, credits: String?, total: Double?) =
+        com.amazecc.app.shared.domain.EmbeddedCourseHalf(
+            code = code, half = half, credits = credits,
+            marks = total?.let { com.amazecc.app.shared.domain.Marks(total = it) },
+        )
+
+    private fun snapshotWithMarkedHalves(
+        theoryCredits: String? = "3",
+        labCredits: String? = "1",
+        theoryTotal: Double? = 87.5,
+        labTotal: Double? = 93.0,
+    ) = DomainSnapshot(
+        academics = Academics(
+            semesters = mapOf(
+                "CH20252601" to com.amazecc.app.shared.domain.Semester(
+                    id = "CH20252601",
+                    courses = mapOf(
+                        "BAEEE101" to com.amazecc.app.shared.domain.Course(
+                            code = "BAEEE101", credits = "4.0",
+                            grade = Grade(letter = "A", grandTotal = "89"),
+                            halves = listOf(
+                                markedHalf("BAEEE101(ETH)", "T", theoryCredits, theoryTotal),
+                                markedHalf("BAEEE101(ELA)", "L", labCredits, labTotal),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    private fun embeddedDetail(snapshot: DomainSnapshot, allGrades: AllGradesRes) =
+        assertNotNull(
+            buildGradesHistoryState(
+                snapshot = snapshot, allGrades = allGrades,
+                screen = M3EGradeScreen.COURSE, selectedCourseCode = "BAEEE101",
+            ).courseDetail
+        )
+
+    @Test
+    fun embeddedHalvesReconcileAgainstThePublishedTotalWithoutRoundingOrInferringALetter() {
+        val detail = embeddedDetail(snapshotWithMarkedHalves(), publishedEmbedded(grandTotal = "89"))
+        assertEquals(2, detail.embeddedHalves.size)
+        assertEquals(
+            "Weighted by 3 and 1 credits, the halves come to 88.875, against the 89 VTOP recorded",
+            detail.reconciliationText,
+        )
+        assertEquals("A", detail.grade) // a blend is a number; the published letter is untouched
+    }
+
+    @Test
+    fun embeddedReconciliationUsesEachHalfOwnCreditsNotAnEqualRatio() {
+        val detail = embeddedDetail(
+            snapshotWithMarkedHalves(theoryCredits = "2", labCredits = "2"),
+            publishedEmbedded(grandTotal = "90"),
+        )
+        assertEquals(
+            "Weighted by 2 and 2 credits, the halves come to 90.25, against the 90 VTOP recorded",
+            detail.reconciliationText,
+        )
+    }
+
+    @Test
+    fun embeddedReconciliationIsAbsentWhenEitherHalfHasNoCredits() {
+        val noTheory = embeddedDetail(
+            snapshotWithMarkedHalves(theoryCredits = null),
+            publishedEmbedded(grandTotal = "26"),
+        )
+        assertNull(noTheory.reconciliationText)
+        val zeroLab = embeddedDetail(
+            snapshotWithMarkedHalves(labCredits = "0"),
+            publishedEmbedded(grandTotal = "26"),
+        )
+        assertNull(zeroLab.reconciliationText)
+    }
+
+    @Test
+    fun embeddedReconciliationIsAbsentWhenThePublishedTotalOrHalfMarksAreMissing() {
+        val noTotal = embeddedDetail(
+            snapshotWithMarkedHalves(),
+            publishedEmbedded(grandTotal = ""),
+        )
+        assertNull(noTotal.reconciliationText)
+        val noLabMarks = embeddedDetail(
+            snapshotWithMarkedHalves(labTotal = null),
+            publishedEmbedded(grandTotal = "26"),
+        )
+        assertNull(noLabMarks.reconciliationText)
+    }
 }

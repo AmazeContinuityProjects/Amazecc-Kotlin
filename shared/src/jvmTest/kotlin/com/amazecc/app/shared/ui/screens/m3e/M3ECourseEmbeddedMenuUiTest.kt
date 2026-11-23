@@ -1,8 +1,10 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasScrollToNodeAction
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -109,6 +111,47 @@ class M3ECourseEmbeddedMenuUiTest {
         // Marks/grades stay common: the menu has one Marks row, not per-half grades.
         onNodeWithText("Marks Breakdown").assertExists()
         onNodeWithText("Grade Predictor").assertExists()
+    }
+
+    @Test
+    fun embeddedOverviewShowsTwoRealHalfPercentagesAndNoBlendedFigure() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3ECourseDetailScreen(state = embeddedState(), onAction = {})
+            }
+        }
+
+        // Two distinct, honestly labelled class attendances on the overview card itself.
+        onNodeWithText("Theory attendance").assertExists()
+        onNodeWithText("93.33%").assertExists()
+        onNodeWithText("28/30 classes").assertExists()
+        onNodeWithText("Lab attendance").assertExists()
+        onNodeWithText("62.50%").assertExists()
+        onNodeWithText("25/40 classes").assertExists()
+        // The merged figure (53/70 = 75.71%) is a blend of two different classes: never render it.
+        onNodeWithText("75.71%").assertDoesNotExist()
+    }
+
+    @Test
+    fun embeddedOverviewWithOnePublishedHalfShowsHonestAbsence() = runComposeUiTest {
+        val state = embeddedState().copy(
+            halves = listOf(theoryHalf().copy(attendance = null), labHalf()),
+            // Even a stale blended value in state must not surface on an embedded overview.
+            attendancePct = 99.99,
+        )
+        setContent {
+            AmazeM3ETheme {
+                M3ECourseDetailScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("Theory attendance").assertExists()
+        onNodeWithText("Lab attendance").assertExists()
+        onNodeWithText("62.50%").assertExists()
+        onNodeWithText("99.99%").assertDoesNotExist()
+        // Theory has no published attendance: the overview card and the Theory Log subtitle
+        // both say so plainly instead of inventing a number for that half.
+        onAllNodesWithText("Attendance not published").assertCountEquals(2)
     }
 
     @Test

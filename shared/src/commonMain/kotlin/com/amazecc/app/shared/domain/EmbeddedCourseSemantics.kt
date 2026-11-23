@@ -93,6 +93,9 @@ object EmbeddedCourseSemantics {
     const val LABEL_COMBINED = "Embedded Theory & Lab"
     const val LABEL_THEORY = "Embedded Theory"
     const val LABEL_LAB = "Embedded Lab"
+    /** TO/LO are NOT embedded: `gradeHistory.test.ts:540-545` and `CurriculumPage.tsx:63-81`. */
+    const val LABEL_THEORY_ONLY = "Theory Only"
+    const val LABEL_LAB_ONLY = "Lab Only"
 
     /**
      * Normalize a courseType (or an FFCS `TYPE`) into one of the three canonical labels.
@@ -102,6 +105,9 @@ object EmbeddedCourseSemantics {
      * one course with two halves. A single-half spelling is classified through
      * [EmbeddedLinkCode.componentOf] — the one canonical component classifier — so no second
      * regex for "is this the lab half" can creep in here.
+     *
+     * `TO` and `LO` are NOT embedded components: they are the ordinary "Theory Only" / "Lab Only"
+     * courses, which [isEmbedded] rejects. They must not be promoted to embedded labels here.
      *
      * Unclassified input gets the empty string, not a definitive embedded label: [isEmbedded] is
      * false for the same input, so claiming "Embedded Theory & Lab" would mislabel data that
@@ -120,8 +126,11 @@ object EmbeddedCourseSemantics {
             return LABEL_COMBINED
         }
         return when (EmbeddedLinkCode.componentOf(rawCode = null, typeHint = raw)) {
-            EmbeddedLinkCode.Component.ELA, EmbeddedLinkCode.Component.LO -> LABEL_LAB
-            EmbeddedLinkCode.Component.ETH, EmbeddedLinkCode.Component.TO -> LABEL_THEORY
+            EmbeddedLinkCode.Component.ELA -> LABEL_LAB
+            EmbeddedLinkCode.Component.ETH -> LABEL_THEORY
+            // Web: TO -> "Theory Only", LO -> "Lab Only" — never an embedded label.
+            EmbeddedLinkCode.Component.TO -> LABEL_THEORY_ONLY
+            EmbeddedLinkCode.Component.LO -> LABEL_LAB_ONLY
             EmbeddedLinkCode.Component.UNKNOWN -> ""
         }
     }

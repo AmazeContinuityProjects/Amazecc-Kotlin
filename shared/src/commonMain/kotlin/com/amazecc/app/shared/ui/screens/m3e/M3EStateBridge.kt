@@ -422,6 +422,115 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * D-189 G2: a merged embedded course's [Course.attendance] holds only the two halves' summed
+ * counts — its printed percentage is blank by design. There is no honest single course percentage.
+ * These pure helpers let both hubs keep the halves' own figures (or report honest absence) instead
+ * of deriving a blended 91.3% from 42/46 and calling it one class's attendance.
+ */
+internal data class EmbeddedHalvesPct(val theory: Double?, val lab: Double?) {
+    val anyPublished: Boolean get() = theory != null || lab != null
+
+    /** Honest copy for the card's existing summary slot: the halves' own figures, or absence. */
+    val summary: String
+        get() = if (anyPublished) {
+            listOfNotNull(
+                theory?.let { "Theory ${halfPctCopy(it)}" },
+                lab?.let { "Lab ${halfPctCopy(it)}" },
+            ).joinToString(" · ")
+        } else "Attendance not published"
+}
+
+private fun halfPctCopy(value: Double): String =
+    if (value % 1.0 == 0.0) "${value.toInt()}%" else "$value%"
+
+internal fun embeddedHalvesPct(course: Course): EmbeddedHalvesPct {
+    fun printed(att: com.amazecc.app.shared.domain.Attendance?): Double? =
+        att?.percentage?.replace("%", "")?.trim()?.toDoubleOrNull()
+
+    var theory: Double? = null
+    var lab: Double? = null
+    course.halves.forEach { half ->
+        val isLab = half.half.equals("L", ignoreCase = true) ||
+            com.amazecc.app.shared.state.AcademicDerivers.isLabCourse(half.code, half.type, half.slots)
+        val pct = printed(half.attendance)
+        if (isLab) {
+            if (lab == null) lab = pct
+        } else {
+            if (theory == null) theory = pct
+        }
+    }
+    return EmbeddedHalvesPct(theory, lab)
+}
+
+/** The one-percentage derivation used by the hubs. Null for an embedded pair — never a fake 0.0. */
+internal fun hubAttendancePct(course: Course): Double? {
+    if (course.isEmbeddedMerged) return null
+    val att = course.attendance
+    val total = att?.total ?: 0
+    val attended = att?.attended ?: 0
+    return if (total > 0) (attended.toDouble() / total) * 100.0 else null
+}
+
+/** Pure attendance-card derivation, shared by the host and its D-189 regression tests. */
+internal fun attendanceCardStateOf(c: Course, attendanceTarget: Float): M3ECourseAttendanceCardState {
+    val targetFraction = attendanceTarget / 100.0
+    val att = c.attendance
+    val total = att?.total ?: 0
+    val attended = att?.attended ?: 0
+    // D-189 G2: an embedded pair is two classes with two published figures. Keep each half's
+    // number, and never turn their summed counts into one course percentage.
+    val halves = if (c.isEmbeddedMerged) embeddedHalvesPct(c) else null
+    val hasData = !c.isEmbeddedMerged && total > 0
+    val pct = hubAttendancePct(c) ?: 0.0
+    val bunkMargin = when {
+        c.isEmbeddedMerged -> halves?.summary ?: "Attendance not published"
+        !hasData -> "Not available"
+        pct >= attendanceTarget && targetFraction > 0.0 -> {
+            val bunk = kotlin.math.floor(
+                (attended - targetFraction * total) / targetFraction
+            ).toInt().coerceAtLeast(0)
+            if (bunk > 0) "Can bunk $bunk more classes" else "On the limit"
+        }
+        targetFraction >= 1.0 -> "Target already at 100%"
+        else -> {
+            val deficit = targetFraction * total - attended
+            val needed = kotlin.math.ceil(deficit / (1.0 - targetFraction)).toInt().coerceAtLeast(1)
+            "Attend next $needed classes"
+        }
+    }
+    return M3ECourseAttendanceCardState(
+        courseCode = c.code,
+        courseTitle = c.title,
+        // Web parity: tokens are "Theory" / "Lab" / "Embedded"
+        // (web AttendanceCalendarView.tsx:403, DesktopCourseDetail.tsx:125).
+        badge = when {
+            c.type.contains("Embedded", ignoreCase = true) -> "Embedded"
+            c.type.contains("Lab", ignoreCase = true) -> "Lab"
+            else -> "Theory"
+        },
+        attendedClasses = attended,
+        totalClasses = total,
+        // Sentinel only: the hub card's headline must not be treated as a real figure for
+        // a pair. The halves below and the honest bunkSummary carry the real information.
+        percentage = pct,
+        tone = when {
+            c.isEmbeddedMerged -> M3ECardTone.NEUTRAL
+            hasData -> M3EComputations.toneForPercentage(pct, attendanceTarget)
+            else -> M3ECardTone.NEUTRAL
+        },
+        faculty = c.faculty ?: "",
+        slot = c.slots.firstOrNull() ?: "",
+        bunkSummary = bunkMargin,
+        isEmbedded = c.type.contains("Embedded", ignoreCase = true),
+        theoryPct = halves?.theory,
+        labPct = halves?.lab,
+        // D-189 follow-up: only a genuinely merged pair renders two halves. A lone
+        // Embedded Theory/Lab half keeps its own single, real published percentage.
+        isMergedPair = c.isEmbeddedMerged,
+    )
+}
+
 @Composable
 fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
@@ -436,50 +545,14 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
 
     val currentSem = domain.academics.semesters[selectedSemId]
     val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
+    // D-189 G2: a pair's summed counts are not one class's attendance, so it must not contribute a
+    // critical/bunk/overall figure to the hub header either.
+    val mergedCourseCodes = remember(rawCourses) {
+        rawCourses.filter { it.isEmbeddedMerged }.mapTo(HashSet()) { it.code }
+    }
 
     val allCards = remember(rawCourses, attendanceTarget) {
-        val targetFraction = attendanceTarget / 100.0
-        rawCourses.map { c ->
-            val att = c.attendance
-            val total = att?.total ?: 0
-            val attended = att?.attended ?: 0
-            val hasData = total > 0
-            val pct = if (hasData) (attended.toDouble() / total) * 100.0 else 0.0
-            val bunkMargin = when {
-                !hasData -> "Not available"
-                pct >= attendanceTarget && targetFraction > 0.0 -> {
-                    val bunk = kotlin.math.floor(
-                        (attended - targetFraction * total) / targetFraction
-                    ).toInt().coerceAtLeast(0)
-                    if (bunk > 0) "Can bunk $bunk more classes" else "On the limit"
-                }
-                targetFraction >= 1.0 -> "Target already at 100%"
-                else -> {
-                    val deficit = targetFraction * total - attended
-                    val needed = kotlin.math.ceil(deficit / (1.0 - targetFraction)).toInt().coerceAtLeast(1)
-                    "Attend next $needed classes"
-                }
-            }
-            M3ECourseAttendanceCardState(
-                courseCode = c.code,
-                courseTitle = c.title,
-                // Web parity: tokens are "Theory" / "Lab" / "Embedded"
-                // (web AttendanceCalendarView.tsx:403, DesktopCourseDetail.tsx:125).
-                badge = when {
-                    c.type.contains("Embedded", ignoreCase = true) -> "Embedded"
-                    c.type.contains("Lab", ignoreCase = true) -> "Lab"
-                    else -> "Theory"
-                },
-                attendedClasses = attended,
-                totalClasses = total,
-                percentage = pct,
-                tone = if (hasData) M3EComputations.toneForPercentage(pct, attendanceTarget) else M3ECardTone.NEUTRAL,
-                faculty = c.faculty ?: "",
-                slot = c.slots.firstOrNull() ?: "",
-                bunkSummary = bunkMargin,
-                isEmbedded = c.type.contains("Embedded", ignoreCase = true)
-            )
-        }
+        rawCourses.map { attendanceCardStateOf(it, attendanceTarget) }
     }
 
     val filteredCards = remember(allCards, activeFilter, searchQuery) {
@@ -487,7 +560,8 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
             val matchesFilter = when (activeFilter) {
                 AttendanceFilter.ALL -> true
                 AttendanceFilter.SAFE -> card.tone == M3ECardTone.GOOD
-                AttendanceFilter.AT_RISK -> card.tone != M3ECardTone.GOOD
+                // Same rule as the stateless screen (M3ECourseAttendanceCardState.isAtRisk).
+                AttendanceFilter.AT_RISK -> card.isAtRisk
                 AttendanceFilter.EMBEDDED -> card.isEmbedded
             }
             val matchesQuery = searchQuery.isBlank() ||
@@ -498,18 +572,19 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    val bunkSummary = remember(allCards, attendanceTarget) {
+    val bunkSummary = remember(allCards, attendanceTarget, mergedCourseCodes) {
         val targetFraction = attendanceTarget / 100.0
-        val totalBunk = allCards.sumOf { card ->
+        val counted = allCards.filter { it.courseCode !in mergedCourseCodes }
+        val totalBunk = counted.sumOf { card ->
             val att = card.attendedClasses
             val tot = card.totalClasses
             if (tot > 0 && card.percentage >= attendanceTarget && targetFraction > 0.0) {
                 kotlin.math.floor((att - targetFraction * tot) / targetFraction).toInt().coerceAtLeast(0)
             } else 0
         }
-        val crit = allCards.count { it.percentage < attendanceTarget && it.totalClasses > 0 }
+        val crit = counted.count { it.percentage < attendanceTarget && it.totalClasses > 0 }
         // The web bands are Safe >= target+5, Warning >= target, Critical below target.
-        val warn = allCards.count {
+        val warn = counted.count {
             it.totalClasses > 0 && it.percentage >= attendanceTarget && it.percentage < attendanceTarget + 5.0
         }
         M3EBunkSummary(
@@ -520,9 +595,10 @@ fun M3EAttendanceScreen(modifier: Modifier = Modifier) {
         )
     }
 
-    val overallPct = remember(allCards) {
-        val tot = allCards.sumOf { it.totalClasses }
-        val att = allCards.sumOf { it.attendedClasses }
+    val overallPct = remember(allCards, mergedCourseCodes) {
+        val counted = allCards.filter { it.courseCode !in mergedCourseCodes }
+        val tot = counted.sumOf { it.totalClasses }
+        val att = counted.sumOf { it.attendedClasses }
         if (tot > 0) (att.toDouble() / tot) * 100.0 else 0.0
     }
 
@@ -906,10 +982,10 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
         }
         semesterIds.flatMap { semId ->
             com.amazecc.app.shared.domain.Projections.mergedCourses(domain, semId).map { c ->
-            val att = c.attendance
-            val total = att?.total ?: 0
-            val attended = att?.attended ?: 0
-            val pct = if (total > 0) (attended.toDouble() / total) * 100.0 else null
+            // D-189 G2: a merged embedded course has two attendance entries, not one blended
+            // percentage. Its halves carry their own figures (shown on course detail); here the
+            // honest course-level value is absence, never a number derived from summed counts.
+            val pct = hubAttendancePct(c)
             val internalMarks = c.marks?.assessments?.map { m ->
                 M3EAssessmentItem(
                     title = m.name,
@@ -1079,7 +1155,12 @@ fun M3ECourseDetailScreen(
     val att = course?.attendance
     val total = att?.total ?: 0
     val attended = att?.attended ?: 0
-    val hasAttendance = total > 0
+    // D-189 G2: an embedded merged course is two different classes. Its merged Attendance only
+    // sums their counts, so deriving one percent here would invent a blended course figure.
+    // CourseAttendanceSummary reads each real half from `halves` instead; never materialize a
+    // course-level percentage for a pair.
+    val isEmbeddedMergedDetail = course?.isEmbeddedMerged == true
+    val hasAttendance = !isEmbeddedMergedDetail && total > 0
     val pct = if (hasAttendance) (attended.toDouble() / total) * 100.0 else 0.0
 
     val internalAssessments = remember(course) {
@@ -1159,6 +1240,8 @@ fun M3ECourseDetailScreen(
         },
         attendedClasses = attended,
         totalClasses = total,
+        // D-189 G2: 0.0 for an embedded pair by design. The screen replaces this with the two
+        // halves' own published percentages and never renders a blended course-level value.
         attendancePct = pct,
         bunkMarginSummary = when {
             !hasAttendance -> "Attendance not available"

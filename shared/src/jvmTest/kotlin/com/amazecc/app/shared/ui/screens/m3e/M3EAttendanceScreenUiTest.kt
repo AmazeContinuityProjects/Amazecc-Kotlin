@@ -30,15 +30,14 @@ class M3EAttendanceScreenUiTest {
             M3ECourseAttendanceCardState(
                 courseCode = "BACSE201",
                 courseTitle = "Data Structures & Algorithms",
-                badge = "EMB",
+                badge = "Theory",
                 attendedClasses = 26,
                 totalClasses = 28,
                 percentage = 92.8,
                 tone = M3ECardTone.GOOD,
                 faculty = "Dr. Raman",
                 slot = "A1+TA1",
-                bunkSummary = "Can bunk 4 more classes",
-                isEmbedded = true
+                bunkSummary = "Can bunk 4 more classes"
             )
         )
     )
@@ -109,5 +108,189 @@ class M3EAttendanceScreenUiTest {
 
         onNodeWithText("No courses match the active filter.").assertExists()
         onNodeWithText("Loading courses…").assertDoesNotExist()
+    }
+
+    private fun embeddedPair() = M3ECourseAttendanceCardState(
+        courseCode = "BACSE106",
+        courseTitle = "Operating Systems",
+        badge = "Embedded",
+        attendedClasses = 42,
+        totalClasses = 46,
+        percentage = 0.0, // D-189 sentinel: the summed counts are not one class's attendance
+        tone = M3ECardTone.NEUTRAL,
+        faculty = "Dr. Rao",
+        slot = "C1+L55",
+        bunkSummary = "Theory 93% · Lab 89%",
+        isEmbedded = true,
+        theoryPct = 93.0,
+        labPct = 89.0,
+        isMergedPair = true
+    )
+
+    @Test
+    fun embeddedPairShowsBothHalvesAndNeverAZeroHeadline() = runComposeUiTest {
+        val state = sampleState().copy(courses = listOf(embeddedPair()))
+
+        setContent {
+            AmazeM3ETheme {
+                M3EAttendanceScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("Theory 93.00%").assertExists()
+        onNodeWithText("Lab 89.00%").assertExists()
+        onNodeWithText("0.00%").assertDoesNotExist()
+        onNodeWithText("42/46 Attended").assertExists()
+    }
+
+    @Test
+    fun atRiskKeepsRealZeroAndLowCardsButDropsNeutralEmbeddedPairs() = runComposeUiTest {
+        val nearTarget = M3ECourseAttendanceCardState(
+            courseCode = "PHY1002",
+            courseTitle = "Near Target Course",
+            badge = "Theory",
+            attendedClasses = 15,
+            totalClasses = 20,
+            percentage = 75.0,
+            tone = M3ECardTone.WARNING,
+            faculty = "Dr. Low",
+            slot = "F1",
+            bunkSummary = "On the limit"
+        )
+        val realZero = M3ECourseAttendanceCardState(
+            courseCode = "MAT1001",
+            courseTitle = "Real Published Zero",
+            badge = "Theory",
+            attendedClasses = 0,
+            totalClasses = 20,
+            percentage = 0.0,
+            tone = M3ECardTone.CRITICAL,
+            faculty = "Dr. Zero",
+            slot = "E1",
+            bunkSummary = "Attend next 15 classes"
+        )
+        val state = sampleState().copy(
+            activeFilter = AttendanceFilter.AT_RISK,
+            courses = listOf(embeddedPair(), nearTarget, realZero)
+        )
+
+        setContent {
+            AmazeM3ETheme {
+                M3EAttendanceScreen(state = state, onAction = {})
+            }
+        }
+
+        // A published 0% is a real at-risk fact and a standalone card renders exactly as before.
+        onNodeWithText("0.00%").assertExists()
+        onNodeWithText("Real Published Zero").assertExists()
+        // The LOW/DANGER bands stay; the neutral pair is not "at risk" and must not pad the list.
+        onNodeWithText("Near Target Course").assertExists()
+        onNodeWithText("Operating Systems").assertDoesNotExist()
+        onNodeWithText("Theory 93.00%").assertDoesNotExist()
+    }
+
+    private fun loneEmbeddedHalf() = M3ECourseAttendanceCardState(
+        courseCode = "BACSE106",
+        courseTitle = "Operating Systems Theory",
+        badge = "Embedded",
+        attendedClasses = 25,
+        totalClasses = 40,
+        percentage = 62.5, // real published figure for one lone half
+        tone = M3ECardTone.CRITICAL,
+        faculty = "Dr. Rao",
+        slot = "C1",
+        bunkSummary = "Attend next 6 classes",
+        isEmbedded = true,
+        // isMergedPair defaults to false: a lone half is NOT a two-half merged pair
+    )
+
+    @Test
+    fun loneEmbeddedHalfShowsItsOwnRealPercentage() = runComposeUiTest {
+        val state = sampleState().copy(courses = listOf(loneEmbeddedHalf()))
+
+        setContent {
+            AmazeM3ETheme {
+                M3EAttendanceScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("Operating Systems Theory").assertExists()
+        onNodeWithText("62.50%").assertExists()
+        onNodeWithText("Attendance not published").assertDoesNotExist()
+        onNodeWithText("0.00%").assertDoesNotExist()
+    }
+
+    @Test
+    fun loneEmbeddedHalfStaysInAtRisk() = runComposeUiTest {
+        val state = sampleState().copy(
+            activeFilter = AttendanceFilter.AT_RISK,
+            courses = listOf(loneEmbeddedHalf())
+        )
+
+        setContent {
+            AmazeM3ETheme {
+                M3EAttendanceScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("Operating Systems Theory").assertExists()
+        onNodeWithText("62.50%").assertExists()
+    }
+
+    @Test
+    fun standaloneWithoutAPublishedFigureShowsHonestAbsence() = runComposeUiTest {
+        val noData = M3ECourseAttendanceCardState(
+            courseCode = "BAHUM251",
+            courseTitle = "Indian Constitution",
+            badge = "Theory",
+            attendedClasses = 0,
+            totalClasses = 0,
+            percentage = 0.0,
+            tone = M3ECardTone.NEUTRAL,
+            faculty = "Dr. Rao",
+            slot = "A1",
+            bunkSummary = "Not available"
+        )
+        val state = sampleState().copy(courses = listOf(noData))
+
+        setContent {
+            AmazeM3ETheme {
+                M3EAttendanceScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("Indian Constitution").assertExists()
+        onNodeWithText("Attendance not published").assertExists()
+        onNodeWithText("0.00%").assertDoesNotExist()
+    }
+
+    @Test
+    fun publishedZeroStillRendersAndStaysAtRisk() = runComposeUiTest {
+        val zero = M3ECourseAttendanceCardState(
+            courseCode = "MAT1001",
+            courseTitle = "Real Published Zero",
+            badge = "Theory",
+            attendedClasses = 0,
+            totalClasses = 20,
+            percentage = 0.0,
+            tone = M3ECardTone.CRITICAL,
+            faculty = "Dr. Zero",
+            slot = "E1",
+            bunkSummary = "Attend next 15 classes"
+        )
+        val state = sampleState().copy(
+            activeFilter = AttendanceFilter.AT_RISK,
+            courses = listOf(zero)
+        )
+
+        setContent {
+            AmazeM3ETheme {
+                M3EAttendanceScreen(state = state, onAction = {})
+            }
+        }
+
+        onNodeWithText("Real Published Zero").assertExists()
+        onNodeWithText("0.00%").assertExists()
+        onNodeWithText("0/20 Attended").assertExists()
     }
 }

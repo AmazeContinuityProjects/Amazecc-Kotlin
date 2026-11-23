@@ -632,4 +632,138 @@ class ReportDataAssemblerTest {
         assertNull(subject.publishedGrade)
         assertNull(subject.od)
     }
+
+    // ── D-189: per-half credit weighting for embedded pairs ───────────────────────
+
+    @Test
+    fun embeddedPairPredictionUsesEachHalfOwnCreditsNotMergedTotal() {
+        // A real 2 (theory) + 1 (lab) pair must be weighted 2:1. The merged accumulator's
+        // `credits` is the pair's TOTAL (3); the old code fed 3.0 + a hardcoded 1.0 to the
+        // predictor, silently turning a 2+1 pair into a 3+1 pair.
+        val snapshot = DomainSnapshot(
+            academics = Academics(
+                semesters = mapOf(
+                    "S" to Semester(
+                        id = "S",
+                        courses = listOf(
+                            Course(
+                                code = "CSE2002", title = "Signals and Systems",
+                                type = "Embedded Theory", credits = "2", slots = listOf("A1"),
+                                attendance = Attendance(attended = 8, total = 10, percentage = "80"),
+                                marks = Marks(
+                                    assessments = listOf(
+                                        Assessment(
+                                            name = "CAT 1", score = "16", maxMark = "20",
+                                            weightage = "10", weightagePercent = "20",
+                                            status = "Present", component = "ETH",
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            Course(
+                                code = "CSE2002(L)", title = "Signals and Systems Lab",
+                                type = "Embedded Lab", credits = "1", slots = listOf("L31"),
+                                attendance = Attendance(attended = 4, total = 5, percentage = "80"),
+                                marks = Marks(
+                                    assessments = listOf(
+                                        Assessment(
+                                            name = "Lab Record", score = "10", maxMark = "10",
+                                            weightage = "10", weightagePercent = "20",
+                                            status = "Present", component = "ELA",
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ).associateBy { it.code },
+                    ),
+                ),
+            ),
+        )
+        val prediction = ReportDataAssembler.assemble(
+            snapshot = snapshot, allGrades = null, identity = null, generatedAt = GENERATED_AT,
+        ).subjects.single().prediction
+        assertNotNull(prediction)
+        val p = prediction!!
+
+        // Rebuild the exact predictors the assembler derived, then compare with the canonical
+        // engine called with the REAL half credits (2.0 / 1.0).
+        val theory = PredictorAssessment(
+            id = "CAT 1", title = "CAT 1", maxMark = 20.0, weightagePercent = 20.0,
+            scoredMark = 16.0, status = "Present", component = PredictorComponent.THEORY,
+        )
+        val lab = PredictorAssessment(
+            id = "Lab Record", title = "Lab Record", maxMark = 10.0, weightagePercent = 20.0,
+            scoredMark = 10.0, status = "Present", component = PredictorComponent.LAB,
+        )
+        val correct = computeCoursePrediction(
+            courseCode = "CSE2002", courseTitle = "Signals and Systems",
+            courseType = "Embedded Theory and Lab",
+            theoryAssessments = listOf(theory), labAssessments = listOf(lab),
+            theoryCredits = 2.0, labCredits = 1.0,
+        )
+        assertEquals(correct.currentStandingPct, p.currentStandingPct!!, 0.0001)
+        assertEquals(correct.maxPossibleScaled, p.maxPossiblePct!!, 0.0001)
+
+        // The bug's 3.0 + 1.0 input yields a different pace, so the assertion above is a real
+        // regression guard rather than a tautology.
+        val oldBug = computeCoursePrediction(
+            courseCode = "CSE2002", courseTitle = "Signals and Systems",
+            courseType = "Embedded Theory and Lab",
+            theoryAssessments = listOf(theory), labAssessments = listOf(lab),
+            theoryCredits = 3.0, labCredits = 1.0,
+        )
+        assertTrue(kotlin.math.abs(oldBug.currentStandingPct - p.currentStandingPct!!) > 0.5)
+    }
+
+    @Test
+    fun embeddedPairWithoutHalfCreditsHasNoPrediction() {
+        // When a half publishes no credits its weight is UNKNOWN. The assembler must not fall back
+        // to 1.0 or to the merged total — skipping the prediction is the honest outcome.
+        val snapshot = DomainSnapshot(
+            academics = Academics(
+                semesters = mapOf(
+                    "S" to Semester(
+                        id = "S",
+                        courses = listOf(
+                            Course(
+                                code = "CSE2003", title = "Signals and Systems",
+                                type = "Embedded Theory", credits = "2", slots = listOf("A1"),
+                                attendance = Attendance(attended = 8, total = 10, percentage = "80"),
+                                marks = Marks(
+                                    assessments = listOf(
+                                        Assessment(
+                                            name = "CAT 1", score = "16", maxMark = "20",
+                                            weightage = "10", weightagePercent = "20",
+                                            status = "Present", component = "ETH",
+                                        ),
+                                    ),
+                                ),
+                            ),
+                            Course(
+                                code = "CSE2003(L)", title = "Signals and Systems Lab",
+                                type = "Embedded Lab", credits = null, slots = listOf("L31"),
+                                attendance = Attendance(attended = 4, total = 5, percentage = "80"),
+                                marks = Marks(
+                                    assessments = listOf(
+                                        Assessment(
+                                            name = "Lab Record", score = "10", maxMark = "10",
+                                            weightage = "10", weightagePercent = "20",
+                                            status = "Present", component = "ELA",
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ).associateBy { it.code },
+                    ),
+                ),
+            ),
+        )
+        val subject = ReportDataAssembler.assemble(
+            snapshot = snapshot, allGrades = null, identity = null, generatedAt = GENERATED_AT,
+        ).subjects.single()
+        // The two halves still merge into one dossier carrying both real assessments...
+        assertEquals(2, subject.assessments.size)
+        // ...but an unknown half credit must not produce a fabricated weighted grade.
+        assertNull(subject.prediction)
+    }
 }

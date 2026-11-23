@@ -68,4 +68,21 @@ class BunkOMeterCardUiTest {
 
         onNodeWithText("Safe to Bunk ~5 Classes", substring = true).assertExists()
     }
+
+    @Test
+    fun blank_percentage_renders_neutral_absence_not_a_fake_critical() = runComposeUiTest {
+        // D-189: an embedded merged course keeps summed counts but has no published percentage.
+        val merged = sampleCourse("BACSE106", attended = 42, total = 46, pct = "")
+
+        setContent {
+            AmazeTheme {
+                BunkOMeterCard(courses = listOf(merged), targetPct = 75f)
+            }
+        }
+
+        onNodeWithText("Attendance not available").assertExists()
+        onNodeWithText("Percentages aren't published for these courses yet.").assertExists()
+        onNodeWithText("Critical", substring = true).assertDoesNotExist()
+        onNodeWithText("0.00%").assertDoesNotExist()
+    }
 }

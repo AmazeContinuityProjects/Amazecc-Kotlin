@@ -635,6 +635,14 @@ object ReportDataAssembler {
         var total: Int,
         val assessments: MutableList<Assessment> = mutableListOf(),
         var publishedGrade: String? = null,
+        /**
+         * D-189: the merged [credits] is the pair's TOTAL (e.g. 3 + 1 = 4). The predictor needs
+         * each component's OWN credits, read from [Course.halves] when the accumulator is built.
+         * Null means the half published no credit figure — never invent one for it.
+         */
+        var theoryCredits: Double? = null,
+        var labCredits: Double? = null,
+        var isEmbeddedMerged: Boolean = false,
     )
 
     private fun buildSubjects(
@@ -672,6 +680,18 @@ object ReportDataAssembler {
                 if (acc.faculty.isBlank()) acc.faculty = course.faculty.orEmpty()
                 if (acc.slot.isBlank()) acc.slot = course.slots.joinToString("+")
                 if (acc.venue.isBlank()) acc.venue = course.venue.orEmpty()
+                // D-189: capture the REAL per-half credits before the pair is reduced to a total.
+                // [Course.halves] is populated by [EmbeddedLinkMerge] for an embedded pair; each
+                // half keeps its original credit string, which is what the web predictor weights.
+                if (course.isEmbeddedMerged) acc.isEmbeddedMerged = true
+                course.halves.forEach { half ->
+                    val credit = half.credits?.let(::num)?.takeIf { it > 0.0 } ?: return@forEach
+                    if (halfIsLab(half)) {
+                        if (acc.labCredits == null) acc.labCredits = credit
+                    } else if (acc.theoryCredits == null) {
+                        acc.theoryCredits = credit
+                    }
+                }
                 acc.attended += course.attendance?.attended ?: 0
                 acc.total += course.attendance?.total ?: 0
                 course.marks?.assessments?.let { acc.assessments.addAll(it) }
@@ -750,6 +770,23 @@ object ReportDataAssembler {
         }
     }
 
+    /**
+     * Which side of an embedded pair a stored half belongs to. The merge already classified it
+     * into [EmbeddedCourseHalf.half]; fall back to the one canonical classifier when a caller
+     * supplied the halves itself without that marker.
+     */
+    private fun halfIsLab(half: EmbeddedCourseHalf): Boolean =
+        when (half.half.trim().uppercase()) {
+            "L" -> true
+            "T" -> false
+            else -> EmbeddedLinkCode.componentOf(
+                rawCode = half.code,
+                typeHint = half.type,
+                slot = half.slots.joinToString("+"),
+                title = half.title,
+            ).isLab
+        }
+
     /** Real marks only: no usable assessment numbers means no prediction, never a guessed grade. */
     private fun predictionFor(acc: SubjectAccum): M3EReportPrediction? {
         val predictors = acc.assessments.mapNotNull { assessment ->
@@ -774,14 +811,35 @@ object ReportDataAssembler {
         }
         if (predictors.isEmpty()) return null
 
+        val hasTheory = predictors.any { it.component == PredictorComponent.THEORY }
+        val hasLab = predictors.any { it.component == PredictorComponent.LAB }
+        val isEmbedded = acc.isEmbeddedMerged || (hasTheory && hasLab) ||
+            EmbeddedLinkCode.componentOf(acc.code, acc.type).isEmbedded
+
+        val theoryCredits: Double
+        val labCredits: Double
+        if (isEmbedded) {
+            // D-189: an embedded pair is weighted with EACH HALF'S OWN credits — 3+1, 2+2, 2+1,
+            // 1+1 all get their real split. A missing half credit is UNKNOWN, not 1.0 and not the
+            // merged total, so skip the prediction rather than fabricate a weighted grade.
+            theoryCredits = acc.theoryCredits?.takeIf { it > 0.0 } ?: return null
+            labCredits = acc.labCredits?.takeIf { it > 0.0 } ?: return null
+        } else {
+            // A single component: the engine weights every present component at 1 regardless of
+            // the figures below, so these numbers cannot change the verdict. Keep the prior
+            // mapping for continuity instead of inventing a new rule for a course with no halves.
+            theoryCredits = acc.credits.coerceAtLeast(1).toDouble()
+            labCredits = 1.0
+        }
+
         val result = computeCoursePrediction(
             courseCode = acc.code,
             courseTitle = acc.title,
             courseType = acc.type,
             theoryAssessments = predictors.filter { it.component == PredictorComponent.THEORY },
             labAssessments = predictors.filter { it.component == PredictorComponent.LAB },
-            theoryCredits = acc.credits.coerceAtLeast(1).toDouble(),
-            labCredits = 1.0,
+            theoryCredits = theoryCredits,
+            labCredits = labCredits,
             // No grading system or cohort curve reaches this snapshot; the canonical engine then
             // uses the absolute ladder. Class average/size stay null/0 — never invented.
             courseSystem = null,

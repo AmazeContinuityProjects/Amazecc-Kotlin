@@ -269,6 +269,13 @@ private fun CourseDetailHeader(
 @Composable
 private fun CourseAttendanceSummary(state: M3ECourseDetailState) {
     val colors = M3ETheme.colors
+    // D-189 G2: an embedded course is two separate classes with two real attendances. Its merged
+    // Course.attendance only sums counts; showing it as one percentage would invent a blend.
+    val pair = embeddedPair(state.halves)
+    if (pair != null) {
+        EmbeddedCourseAttendanceCard(state, pair)
+        return
+    }
     if (state.totalClasses <= 0) {
         M3ESurfaceCard(containerLevel = SurfaceContainerLevel.LOW, modifier = Modifier.fillMaxWidth()) {
             Text("Attendance unavailable", color = colors.onSurfaceVariant)
@@ -333,6 +340,75 @@ private fun CourseAttendanceSummary(state: M3ECourseDetailState) {
                     fontWeight = FontWeight.SemiBold,
                     color = colors.primary
                 )
+            }
+        }
+    }
+}
+
+/**
+ * D-189 G2: overview attendance for an embedded pair. Every figure is read from the half's own
+ * published attendance via the same projection the component menu and panels use; a half with no
+ * published attendance says so honestly. No aggregate is computed, so no blended percentage can
+ * reach this card. This is a display of the two existing halves, not a new per-row control.
+ */
+@Composable
+private fun EmbeddedCourseAttendanceCard(
+    state: M3ECourseDetailState,
+    pair: Pair<EmbeddedCourseHalf, EmbeddedCourseHalf>,
+) {
+    val colors = M3ETheme.colors
+    val (theory, lab) = pair
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.HIGH,
+        cornerRadius = 24.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = "Attendance",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.onSurface
+            )
+            listOf(theory, lab).forEach { half ->
+                val label = m3eComponentLabel(half)
+                // Same helper as Theory Log / Lab Log subtitles, split only for display hierarchy.
+                val componentText = componentAttendanceText(half)
+                val hasCounts = " · " in componentText
+                val headline = if (hasCounts) componentText.substringBefore(" · ") else componentText
+                val counts = if (hasCounts) componentText.substringAfter(" · ") else ""
+                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = "$label attendance",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.onSurfaceVariant
+                        )
+                        Text(
+                            text = headline,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black,
+                            color = colors.primary
+                        )
+                    }
+                    if (counts.isNotBlank()) {
+                        Text(
+                            text = counts,
+                            fontSize = 12.sp,
+                            color = colors.onSurfaceVariant
+                        )
+                        Text(
+                            text = componentMarginText(half, state.attendanceTarget.toDouble()),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.primary
+                        )
+                    }
+                }
             }
         }
     }

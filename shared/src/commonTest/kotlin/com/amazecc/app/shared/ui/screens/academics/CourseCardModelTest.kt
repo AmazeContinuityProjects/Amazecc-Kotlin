@@ -7,6 +7,7 @@ import com.amazecc.app.shared.domain.CourseMarks
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -154,6 +155,40 @@ class CourseCardModelTest {
         // The faculty is still resolved, but the card draws it per row rather than once.
         // `parseFaculty` normalises VTOP's shouted caps into a readable name.
         assertEquals("Karthik R", card.faculty?.name)
+    }
+
+    // ── D-189: blank is absence, never 0% / LOW ──────────────────────────────
+
+    @Test
+    fun aBlankHalfIsNeutralAndSaysSoNotAZeroPercent() {
+        val card = embeddedCard(labPct = "").cardModel()
+
+        assertNull(card.halves[1].attendancePct)
+        assertEquals(CardTone.NEUTRAL, card.halves[1].tone)
+        assertEquals(ATTENDANCE_NOT_PUBLISHED, card.halves[1].attendanceLabel)
+        // The other half keeps its real figure and tone.
+        assertEquals(93.0, card.halves[0].attendancePct)
+        assertEquals(CardTone.GOOD, card.halves[0].tone)
+    }
+
+    @Test
+    fun aBlankStandalonePercentageIsHonestAbsence() {
+        val card = CourseGroup(
+            courseCode = "BASTS101",
+            courseTitle = "Soft Skill",
+            semesterSubId = "CH20262701",
+            semesterName = "Fall",
+            theoryAtt = att("").copy(courseCode = "BASTS101", courseType = "Soft Skill")
+        ).cardModel()
+
+        assertNull(card.headlinePct)
+        assertEquals(CardTone.NEUTRAL, card.headlineTone)
+        assertEquals(ATTENDANCE_NOT_PUBLISHED, card.headlineLabel)
+        assertFalse(card.headlineVisible)
+
+        // A published zero stays a real (LOW) zero — blank and zero are different facts.
+        assertEquals(CardTone.LOW, cardTone(0.0))
+        assertEquals(CardTone.NEUTRAL, cardTone(null))
     }
 
     // ── The bands ────────────────────────────────────────────────────────────

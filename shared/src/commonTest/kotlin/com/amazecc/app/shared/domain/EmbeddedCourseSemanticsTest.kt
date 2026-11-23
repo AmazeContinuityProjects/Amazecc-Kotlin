@@ -409,6 +409,29 @@ class EmbeddedCourseSemanticsTest {
         assertEquals("Embedded Theory & Lab", EmbeddedCourseSemantics.labelFor("Embedded Theory & Lab"))
         assertEquals("Embedded Lab", EmbeddedCourseSemantics.labelFor("Embedded Lab"))
         assertEquals("Embedded Theory", EmbeddedCourseSemantics.labelFor("Embedded Theory"))
+        // Abbreviations still name the embedded halves.
+        assertEquals("Embedded Theory", EmbeddedCourseSemantics.labelFor("ETH"))
+        assertEquals("Embedded Lab", EmbeddedCourseSemantics.labelFor("ELA"))
+        // TO/LO are ordinary (non-embedded) courses, not promoted to embedded labels.
+        assertEquals("Theory Only", EmbeddedCourseSemantics.labelFor("Theory Only"))
+        assertEquals("Lab Only", EmbeddedCourseSemantics.labelFor("Lab Only"))
+        assertEquals("Theory Only", EmbeddedCourseSemantics.labelFor("TO"))
+        assertEquals("Lab Only", EmbeddedCourseSemantics.labelFor("LO"))
+    }
+
+    @Test
+    fun `theory-only and lab-only labels agree with isEmbedded being false`() {
+        assertEquals("Theory Only", EmbeddedCourseSemantics.labelFor("Theory Only"))
+        assertEquals("Lab Only", EmbeddedCourseSemantics.labelFor("Lab Only"))
+        assertFalse(EmbeddedCourseSemantics.isEmbedded("Theory Only", false, false))
+        assertFalse(EmbeddedCourseSemantics.isEmbedded("Lab Only", false, false))
+
+        // ETH/ELA are embedded halves even though their bare abbreviation lacks the word
+        // "embedded"; isEmbedded's text rule is about the full label, so only labelFor maps them.
+        assertEquals("Embedded Theory", EmbeddedCourseSemantics.labelFor("ETH"))
+        assertEquals("Embedded Lab", EmbeddedCourseSemantics.labelFor("ELA"))
+        assertTrue(EmbeddedCourseSemantics.isEmbedded("Embedded Theory", false, false))
+        assertTrue(EmbeddedCourseSemantics.isEmbedded("Embedded Lab", false, false))
     }
 
     @Test

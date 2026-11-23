@@ -13,6 +13,7 @@ import com.amazecc.app.shared.state.StoredMarks
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -51,6 +52,16 @@ class EmbeddedLinkMergeTest {
             total = 90.0,
             maxTotal = 100.0,
         ),
+    )
+
+    /** A half with caller-chosen credits/score/printed percentage, for the blend/attendance rules. */
+    private fun marksHalf(code: String, type: String, credits: String?, total: Double?, percentage: String) = Course(
+        code = code,
+        title = "Database Systems",
+        type = type,
+        credits = credits,
+        attendance = Attendance(24, 27, percentage),
+        marks = Marks(classNbr = code, total = total, maxTotal = 100.0),
     )
 
     /** Two endpoints, four rows, one logical course. */
@@ -195,5 +206,74 @@ class EmbeddedLinkMergeTest {
         assertEquals("BCSE203E", M3EComputations.canonicalCourseKey("BCSE203E(T)"))
         val deduped = M3EComputations.deduplicateByBaseCode(listOf(card("BCSE203E(T)"), card("BCSE203E")))
         assertEquals(1, deduped.size)
+    }
+
+    // ── D-189: no invented credit ratio, no invented combined attendance ──────────
+
+    @Test
+    fun `two halves with missing or zero credits leave marks total null`() {
+        fun merged(t: String?, l: String?) = EmbeddedLinkMerge.mergeCourses(
+            listOf(
+                marksHalf("BCSE203E(T)", "Embedded Theory", t, 40.0, "88.89"),
+                marksHalf("BCSE203E(L)", "Embedded Lab", l, 90.0, "90"),
+            )
+        ).single()
+
+        assertNull(merged(null, "1").marks?.total, "missing theory credit")
+        assertNull(merged("3", null).marks?.total, "missing lab credit")
+        assertNull(merged("", " ").marks?.total, "blank credits")
+        assertNull(merged("0", "1").marks?.total, "zero is not a weight")
+        // The old code returned 65 (= (40+90)/2) for all four cases above; now they are null.
+        assertEquals("Embedded Theory + Embedded Lab", merged("3", "1").marks?.mergedFrom)
+    }
+
+    @Test
+    fun `3 plus 1 and 2 plus 2 blends use each half's own credits`() {
+        fun total(tCredits: String, lCredits: String, tScore: Double, lScore: Double): Double? =
+            EmbeddedLinkMerge.mergeCourses(
+                listOf(
+                    marksHalf("BCSE203E(T)", "Embedded Theory", tCredits, tScore, "88.89"),
+                    marksHalf("BCSE203E(L)", "Embedded Lab", lCredits, lScore, "90"),
+                )
+            ).single().marks!!.total
+
+        // (40*3 + 90*1) / 4 = 52.5; the old 50/50 would have been 65.
+        assertEquals(52.5, total("3", "1", 40.0, 90.0)!!, 0.000001)
+        // (90*2 + 50*2) / 4 = 70 — equal credits, still each half's own credit.
+        assertEquals(70.0, total("2", "2", 90.0, 50.0)!!, 0.000001)
+        // Same scores at 3+1 give 80, proving the split actually drives the blend.
+        assertEquals(80.0, total("3", "1", 90.0, 50.0)!!, 0.000001)
+    }
+
+    @Test
+    fun `two halves keep their own attendance figures while the merged row keeps only counts`() {
+        val merged = EmbeddedLinkMerge.mergeCourses(
+            listOf(
+                theoryRow("BCSE203E(T)", "Embedded Theory"),
+                labRow("BCSE203E(L)", "Embedded Lab"),
+            )
+        ).single()
+
+        assertTrue(merged.isEmbeddedMerged)
+        assertEquals(42, merged.attendance!!.attended, "24 + 18 counts are still available")
+        assertEquals(47, merged.attendance!!.total, "27 + 20 counts are still available")
+        assertEquals("", merged.attendance!!.percentage, "two classes are not one percentage")
+        assertEquals(2, merged.halves.size)
+        assertEquals(
+            setOf("88.89", "90"),
+            merged.halves.map { it.attendance!!.percentage }.toSet(),
+            "each half retains its own published figure",
+        )
+    }
+
+    @Test
+    fun `a single published half keeps its marks and attendance verbatim`() {
+        val lone = EmbeddedLinkMerge.mergeCourses(
+            listOf(theoryRow("BCSE203E(T)", "Embedded Theory"))
+        ).single()
+
+        assertFalse(lone.isEmbeddedMerged)
+        assertEquals(40.0, lone.marks!!.total!!, 0.000001)
+        assertEquals("88.89", lone.attendance!!.percentage)
     }
 }

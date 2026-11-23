@@ -47,6 +47,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.EmbeddedCourseHalf
+import com.amazecc.app.shared.domain.EmbeddedCourseSemantics
+import com.amazecc.app.shared.domain.EmbeddedEntry
+import com.amazecc.app.shared.domain.EmbeddedHalf
 import com.amazecc.app.shared.domain.GradeHistory
 import com.amazecc.app.shared.domain.GradeComponent
 import com.amazecc.app.shared.domain.overhaul.M3EGradeBreakdownRow
@@ -543,6 +547,13 @@ private fun LazyListScope.gradeCourseContent(state: M3EGradesHistoryState) {
                 )
             }
         } else {
+            // The halves are real marks, but VTOP grades the pair once. Say so here too — the
+            // no-halves copy below only covers a pair whose marks have not been pulled yet.
+            item(key = "embedded_explanation") {
+                M3EGradeInfoCard(
+                    text = "VTOP publishes an embedded course as one blended grade; these are the two halves it blends."
+                )
+            }
             item(key = "embedded_header") {
                 M3EGradeSectionHeader(
                     icon = Icons.Rounded.Layers,
@@ -1362,6 +1373,47 @@ internal fun buildGradesHistoryState(
     )
 }
 
+/**
+ * D-189 G4 — reconcile an embedded course's two marks halves against the one total VTOP published.
+ *
+ * VTOP grades the pair once, on the credit-weighted blend of its halves; the halves are shown only
+ * to explain that published grade. Both halves must carry marks **and** their own credits, and a
+ * published total must exist — otherwise there is no honest reconciliation to print, never a
+ * guessed 1:1 ratio. The blend is the exact [EmbeddedCourseSemantics.creditWeighted] number: no
+ * rounding to a precision VTOP did not publish, and no letter derived from it.
+ */
+private fun embeddedHalvesReconciliation(
+    halves: List<EmbeddedCourseHalf>,
+    publishedTotal: String,
+): String? {
+    val published = M3EGradeComputations.num(publishedTotal) ?: return null
+    val theory = halves.firstOrNull { it.half.startsWith("T", ignoreCase = true) } ?: return null
+    val lab = halves.firstOrNull { it.half.startsWith("L", ignoreCase = true) } ?: return null
+    val theoryScore = theory.marks?.total ?: return null
+    val labScore = lab.marks?.total ?: return null
+    if (!theoryScore.isFinite() || !labScore.isFinite()) return null
+    val theoryCredits = M3EGradeComputations.num(theory.credits) ?: return null
+    val labCredits = M3EGradeComputations.num(lab.credits) ?: return null
+    val blend = EmbeddedCourseSemantics.creditWeighted(
+        listOf(
+            EmbeddedEntry(
+                code = theory.code, half = EmbeddedHalf.THEORY,
+                credits = theoryCredits, earnedMarks = theoryScore,
+            ),
+            EmbeddedEntry(
+                code = lab.code, half = EmbeddedHalf.LAB,
+                credits = labCredits, earnedMarks = labScore,
+            ),
+        )
+    ) { it.earnedMarks } ?: return null
+    return "Weighted by ${unroundedNumber(theoryCredits)} and ${unroundedNumber(labCredits)} credits, " +
+        "the halves come to ${unroundedNumber(blend)}, against the ${unroundedNumber(published)} VTOP recorded"
+}
+
+/** Shortest honest decimal for a published number: no rounding, just a trailing `.0` dropped. */
+private fun unroundedNumber(value: Double): String =
+    if (value % 1.0 == 0.0) value.toLong().toString() else value.toString()
+
 /** Build the course subpage model from the real GradeItem and the snapshot's embedded halves. */
 private fun buildGradeCourseDetail(
     item: GradeItem,
@@ -1430,6 +1482,11 @@ private fun buildGradeCourseDetail(
             }
     } else emptyList()
 
+    // D-189 G4: a real embedded pair reconciles against its published total. Keep the flat
+    // weightage note only when the halves cannot be reconciled (missing marks/credits/total).
+    val embeddedReconciliation =
+        if (embedded) embeddedHalvesReconciliation(domainCourse?.halves.orEmpty(), item.grandTotal) else null
+
     return M3EGradeCourseDetail(
         courseCode = item.courseCode,
         courseTitle = item.courseTitle,
@@ -1444,7 +1501,8 @@ private fun buildGradeCourseDetail(
         isEmbedded = embedded,
         creditsLabel = item.credits?.takeIf { it.isNotBlank() }?.let { "$it cr" },
         assessmentGroups = groups,
-        reconciliationText = M3EGradeComputations.reconciliationNote(item.grandTotal, details)
+        reconciliationText = embeddedReconciliation
+            ?: M3EGradeComputations.reconciliationNote(item.grandTotal, details)
     )
 }
 

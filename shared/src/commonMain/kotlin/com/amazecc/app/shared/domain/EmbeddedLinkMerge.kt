@@ -161,26 +161,28 @@ object EmbeddedLinkMerge {
         }
     }
 
-    /** Different classes, so their counts add — never a mean of their percentages. */
+    /**
+     * Different classes, so their counts add — but they are still TWO attendance entries, not one
+     * percentage. D-189: when both halves exist the merged row keeps the raw sums for callers that
+     * need counts (summaries, bunk maths) while leaving the printed percentage honestly blank. Each
+     * half keeps its own printed figure in [Course.halves]. A lone half is returned verbatim.
+     */
     private fun combinedAttendance(theory: Attendance?, lab: Attendance?): Attendance? {
         if (theory == null) return lab
         if (lab == null) return theory
-        val attended = theory.attended + lab.attended
-        val total = theory.total + lab.total
-        val percentage = if (total > 0) trimDouble(round(attended * 10000.0 / total) / 100.0)
-        else theory.percentage.ifBlank { lab.percentage }
         return Attendance(
-            attended = attended,
-            total = total,
-            percentage = percentage,
+            attended = theory.attended + lab.attended,
+            total = theory.total + lab.total,
+            percentage = "",
             logs = (theory.logs + lab.logs).distinctBy { it.date to it.status },
         )
     }
 
     /**
-     * Credit-weighted blend of the two halves — `gradeHistory.ts:segmentBlend`. When a half has
-     * no credits the weighting cannot be invented, so the two scores are averaged instead; when
-     * only one half published marks, that half's own number is used verbatim.
+     * Credit-weighted blend of the two halves — `gradeHistory.ts:415-429`. Each half contributes
+     * its OWN credits through the one canonical blend in [EmbeddedCourseSemantics.creditWeighted].
+     * A half without usable credits makes the blend null — never an invented 50/50 mean. When only
+     * one half published marks, that half's own number is used verbatim.
      */
     private fun combinedMarks(theory: Course?, lab: Course?): Marks? {
         val tm = theory?.marks
@@ -190,17 +192,25 @@ object EmbeddedLinkMerge {
         val tTotal = tm?.total
         val lTotal = lm?.total
         val total = when {
-            tTotal != null && lTotal != null -> {
-                val tc = creditValue(theory?.credits)
-                val lc = creditValue(lab?.credits)
-                val blended = if (tc != null && lc != null && tc + lc > 0.0)
-                    (tTotal * tc + lTotal * lc) / (tc + lc)
-                else (tTotal + lTotal) / 2.0
-                round2(blended)
-            }
-            tTotal != null -> tTotal
-            lTotal != null -> lTotal
-            else -> null
+            tTotal == null && lTotal == null -> null
+            tTotal == null -> lTotal
+            lTotal == null -> tTotal
+            else -> EmbeddedCourseSemantics.creditWeighted(
+                listOf(
+                    EmbeddedEntry(
+                        code = theory?.code.orEmpty(),
+                        half = EmbeddedHalf.THEORY,
+                        credits = creditValue(theory?.credits) ?: 0.0,
+                        earnedMarks = tTotal,
+                    ),
+                    EmbeddedEntry(
+                        code = lab?.code.orEmpty(),
+                        half = EmbeddedHalf.LAB,
+                        credits = creditValue(lab?.credits) ?: 0.0,
+                        earnedMarks = lTotal,
+                    ),
+                )
+            ) { it.earnedMarks }?.let(::round2)
         }
         val maxTotal = listOfNotNull(tm?.maxTotal, lm?.maxTotal).maxOrNull()
 
