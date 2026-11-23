@@ -19,7 +19,8 @@
               "05-ffcs-planner/ranking-and-priority",
               "05-ffcs-planner/drop-ladder-and-errors",
               "05-ffcs-planner/share-and-storage",
-              "05-ffcs-planner/ui-and-state"
+              "05-ffcs-planner/ui-and-state",
+              "05-ffcs-planner/embedded-courses"
             ],
             "expanded": true
           }
