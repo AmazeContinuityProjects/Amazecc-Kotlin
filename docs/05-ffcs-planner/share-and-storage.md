@@ -44,7 +44,7 @@ Each term is defined here before it is used later on the page.
 | Sanitizer | Code that repairs each bad field individually instead of discarding the whole record | ref `07` §1.3 (`:82-128`) |
 | Revision stamp | A version number on a settings record that tells a migration whether `50` was an old default or a real choice | ref `07` §1.3 (`:114-128`) |
 | Target pruning | Removing saved generator targets whose course codes are no longer offered | ref `07` §4 (`:270-294`) |
-| Ported library | A canonical layer reimplemented in Kotlin with golden tests, but not yet wired into the running app | D-178 / D-179 (this page) |
+| Ported library | A canonical layer reimplemented in Kotlin with golden tests, but not yet wired into the running app. **D-185 wired the FFCS *export builders*** into the host (`M3EAcademicLegacyBridge.kt:1000-1121`) — a different work item that did **not** wire the share codecs or the storage keys. | D-178 / D-179 (this page); D-185 export wiring in `M3EAcademicLegacyBridge.kt:1000-1121` |
 
 ## The idea, in plain words
 
@@ -484,8 +484,20 @@ The reader accepts `v6|` (with expiry check), `v5|`, `v3|`, `v2|`, `v1|`, `amz-p
 | Fresh id / warn 8000 / LEB128 limits | none | all specified |
 
 <Warning>
-Do not describe `SocialUtils.kt` as "FFCS share". It is a different feature with a different wire format. The planner itself has **no** plan-to-code encoder or decoder wired in (`vocabulary.md:412-418`, `index.md:275-277`). The exports that do exist are a real RFC 5545 ICS (`FfcsEngine.kt:190-249`) and a simple HTML dossier (`M3EAcademicLegacyBridge.kt:938-978`).
+Do not describe `SocialUtils.kt` as "FFCS share". It is a different feature with a different wire format. The planner itself has **no** plan-to-code encoder or decoder wired in (`vocabulary.md:412-418`, `index.md:275-277`): the lz-string `?d` / `?x` / `?q` / `?r` share codecs are **still only ported libraries** (D-179), not reachable from the running app. D-185 wired five **file-export** builders into the host (`M3EFfcsPlannerScreen.kt:324-454`, `M3EAcademicLegacyBridge.kt:1000-1121`) — those are downloads, not share codes. That distinction has not changed: **FFCS share codes remain unwired.**
 </Warning>
+
+The five real export paths, with their canonical builders:
+
+| Card | Canonical builder | Real source | What feeds it |
+|---|---|---|---|
+| Export ICS | `FfcsEngine.buildFfcsIcs` → `String?` | `FfcsEngine.kt:953-1008`; host at `M3EAcademicLegacyBridge.kt:1000-1013` | The **first** generated timetable only (asymmetry preserved) |
+| Export HTML dossier | `buildFfcsDossierHtml` → `String` | `FfcsDossier.kt:16-31`; host at `:1014-1047` | The selected generated timetable, else the first; when none exists, a real selected-course `buildSimpleHtml` fallback (`HtmlExport.kt:56`) |
+| Export PDF | `buildFfcsPdf(generated, "FFCS Timetables")` → `ByteArray` | `FfcsExportPdf.kt:82-83`; host at `:1048-1065` | **All** generated timetables |
+| Export JSON | `buildFfcsJson(generated)` → `String` | `FfcsExportJson.kt:95`; host at `:1066-1083` | **All** generated timetables |
+| Export clash report | `buildFfcsClashReport(FfcsClashDeriver.derive(addedCourses))` → `String` | `FfcsClashDeriver.kt:24-80`, `FfcsExportClashReport.kt:120`; host at `:1084-1121` | The student's real selected offerings; no fabricated clashes |
+
+Every card saves through the host's `rememberFileSaver` (`M3EAcademicLegacyBridge.kt:863`); the four dated exports use `ffcsExportFileName(format, Clock.System.now().toEpochMilliseconds())` (`FfcsDossier.kt:40-51`), ICS keeps the fixed `amazecc-ffcs.ics` name (`:1006`), and `exportNotice` is set only from real save outcomes (`M3EAcademicLegacyBridge.kt:1000-1121`). None of this writes a share code or a planner storage key — see §2 and §3 below.
 
 ### 2. SettingsManager: two FFCS cache keys, no planner store
 

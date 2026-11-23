@@ -121,6 +121,10 @@ sealed interface M3EFfcsPlannerAction {
     data class SetResultsSearchQuery(val query: String) : M3EFfcsPlannerAction
     data object ExportIcs : M3EFfcsPlannerAction
     data object ExportHtmlDossier : M3EFfcsPlannerAction
+    // ── D-185 ──
+    data object ExportPdf : M3EFfcsPlannerAction
+    data object ExportJson : M3EFfcsPlannerAction
+    data object ExportClashReport : M3EFfcsPlannerAction
     data object Refresh : M3EFfcsPlannerAction
     data object Back : M3EFfcsPlannerAction
     // ── D-184 ──
@@ -362,6 +366,85 @@ fun M3EFfcsPlannerScreen(
                                 )
                                 Text(
                                     "Export HTML dossier",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.onSurface
+                                )
+                            }
+                        }
+                    }
+                    // ── D-185 ── one full-width export card per row ──
+                    item(key = "export_pdf") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.STANDARD,
+                            onClick = { onAction(M3EFfcsPlannerAction.ExportPdf) }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.FileDownload,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    "Export PDF",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.onSurface
+                                )
+                            }
+                        }
+                    }
+                    item(key = "export_json") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.STANDARD,
+                            onClick = { onAction(M3EFfcsPlannerAction.ExportJson) }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.FileDownload,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    "Export JSON",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.onSurface
+                                )
+                            }
+                        }
+                    }
+                    item(key = "export_clash_report") {
+                        M3ESurfaceCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            containerLevel = SurfaceContainerLevel.STANDARD,
+                            onClick = { onAction(M3EFfcsPlannerAction.ExportClashReport) }
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.FileDownload,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Text(
+                                    "Export clash report",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     color = colors.onSurface

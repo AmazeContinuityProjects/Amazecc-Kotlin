@@ -140,6 +140,10 @@ class M3EFfcsRuntimeUiTest {
             }
         }
 
+        // This copy is a late LazyColumn item; bring it into the viewport before asserting.
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("No options generated yet."))
+        onNodeWithText("No options generated yet.").assertExists()
+
         onNodeWithText("Drop retry: On").performClick()
         onNodeWithText("Retry with drop").performClick()
 
@@ -147,10 +151,14 @@ class M3EFfcsRuntimeUiTest {
             it is M3EFfcsPlannerAction.SetDropRetryEnabled && !it.enabled
         })
         assertTrue(captured.any { it is M3EFfcsPlannerAction.RetryWithDrop })
-        // Existing RESULTS copy and actions are preserved.
-        onNodeWithText("No options generated yet.").assertExists()
+        // Existing RESULTS copy and actions are preserved. These are late LazyColumn
+        // items; scroll each into the viewport before asserting (clicks/asserts on
+        // off-screen items are silently dropped).
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Generate clash-free options"))
         onNodeWithText("Generate clash-free options").assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Export ICS"))
         onNodeWithText("Export ICS").assertExists()
+        onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Export HTML dossier"))
         onNodeWithText("Export HTML dossier").assertExists()
     }
 

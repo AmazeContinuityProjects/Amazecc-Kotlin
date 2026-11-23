@@ -21,8 +21,16 @@ import com.amazecc.app.shared.domain.overhaul.M3EFfcsFacultyPriorityUi
 import com.amazecc.app.shared.domain.overhaul.M3EFfcsRankingFactor
 import com.amazecc.app.shared.domain.overhaul.M3EFfcsRankingMode
 import com.amazecc.app.shared.domain.overhaul.M3EFfcsRetryUi
+import com.amazecc.app.shared.ffcs.AddedCourse
 import com.amazecc.app.shared.ffcs.DropFailure
+import com.amazecc.app.shared.ffcs.FfcsClashDeriver
+import com.amazecc.app.shared.ffcs.FfcsSlotSchema
 import com.amazecc.app.shared.ffcs.ParsedCourse
+import com.amazecc.app.shared.ffcs.buildFfcsClashReport
+import com.amazecc.app.shared.ffcs.buildFfcsDossierHtml
+import com.amazecc.app.shared.ffcs.buildFfcsJson
+import com.amazecc.app.shared.ffcs.buildFfcsPdf
+import com.amazecc.app.shared.ffcs.ffcsExportFileName
 import com.amazecc.app.shared.ffcs.isRetryableFailure
 import com.amazecc.app.shared.ffcs.planner.RankingFactor as EngineRankingFactor
 import com.amazecc.app.shared.ffcs.planner.RankingFactorsConfig
@@ -47,7 +55,6 @@ import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ContentData
 import com.amazecc.app.shared.utils.QRCodeGenerator
 import com.amazecc.app.shared.utils.buildSimpleHtml
-import com.amazecc.app.shared.utils.buildTableHtml
 import com.amazecc.app.shared.utils.SocialUtils
 import com.amazecc.app.shared.utils.encodeQrPng
 import com.amazecc.app.shared.utils.openExternalUrl
@@ -1005,23 +1012,12 @@ fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
                         }
                     }
                     is M3EFfcsPlannerAction.ExportHtmlDossier -> {
-                        val headers = listOf("Course", "Title", "Credits", "Type", "Slots", "Faculty", "Venue")
                         // Prefer the user-selected generated variant; fall back to the first one.
                         val timetable = generated.firstOrNull { it.id == selectedResultId }
                             ?: generated.firstOrNull()
-                        val rows = timetable?.courses.orEmpty().map { course ->
-                            listOf(
-                                course.code,
-                                course.title,
-                                course.credits,
-                                course.type,
-                                course.slots.joinToString(", "),
-                                course.faculty,
-                                course.venue
-                            )
-                        }
-                        val html = if (timetable != null && rows.isNotEmpty()) {
-                            buildTableHtml(timetable.name, headers, rows)
+                        val html = if (timetable != null) {
+                            // D-185: one real builder for a real generated timetable.
+                            buildFfcsDossierHtml(timetable)
                         } else {
                             // No generated timetable: fall back to the real selected-course strings.
                             val selected = courses.filter { it.isSelected }
@@ -1037,11 +1033,88 @@ fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
                         }
                         if (html != null) {
                             scope.launch {
-                                val fileName = "amazecc-ffcs-dossier.html"
+                                val fileName = ffcsExportFileName(
+                                    "html",
+                                    Clock.System.now().toEpochMilliseconds()
+                                )
                                 exportNotice = if (saveFile(fileName, html.toByteArray())) {
                                     "FFCS dossier exported as $fileName."
                                 } else {
                                     "Could not save the FFCS dossier."
+                                }
+                            }
+                        }
+                    }
+                    is M3EFfcsPlannerAction.ExportPdf -> {
+                        if (generated.isEmpty()) {
+                            exportNotice = "No timetables yet — generate one before exporting a PDF."
+                        } else {
+                            val bytes = buildFfcsPdf(generated, "FFCS Timetables")
+                            scope.launch {
+                                val fileName = ffcsExportFileName(
+                                    "pdf",
+                                    Clock.System.now().toEpochMilliseconds()
+                                )
+                                exportNotice = if (saveFile(fileName, bytes)) {
+                                    "FFCS timetables exported as $fileName."
+                                } else {
+                                    "Could not save the FFCS PDF."
+                                }
+                            }
+                        }
+                    }
+                    is M3EFfcsPlannerAction.ExportJson -> {
+                        if (generated.isEmpty()) {
+                            exportNotice = "No timetables yet — generate one before exporting JSON."
+                        } else {
+                            val json = buildFfcsJson(generated)
+                            scope.launch {
+                                val fileName = ffcsExportFileName(
+                                    "json",
+                                    Clock.System.now().toEpochMilliseconds()
+                                )
+                                exportNotice = if (saveFile(fileName, json.toByteArray(Charsets.UTF_8))) {
+                                    "FFCS timetables exported as $fileName."
+                                } else {
+                                    "Could not save the FFCS JSON."
+                                }
+                            }
+                        }
+                    }
+                    is M3EFfcsPlannerAction.ExportClashReport -> {
+                        // Only real selected offerings become courses; the deriver reports real
+                        // overlaps only, so an empty clash list stays an honest "no clashes" report.
+                        val selectedOfferings = offerings
+                            .filter { (code, _) ->
+                                selectedCodes.any { it.equals(code, ignoreCase = true) }
+                            }
+                            .mapNotNull { (_, offs) -> offs.firstOrNull() }
+                        if (selectedOfferings.isEmpty()) {
+                            exportNotice = "Select courses before exporting a clash report."
+                        } else {
+                            val addedCourses = selectedOfferings.map { offering ->
+                                AddedCourse(
+                                    id = offering.toKey(),
+                                    code = offering.code,
+                                    title = offering.title,
+                                    slots = FfcsSlotSchema.splitSlots(offering.slot),
+                                    faculty = offering.faculty,
+                                    venue = offering.room,
+                                    credits = offering.credits,
+                                    type = offering.type,
+                                    color = ""
+                                )
+                            }
+                            val report = buildFfcsClashReport(FfcsClashDeriver.derive(addedCourses))
+                            scope.launch {
+                                val fileName = ffcsExportFileName(
+                                    "txt",
+                                    Clock.System.now().toEpochMilliseconds()
+                                )
+                                exportNotice = if (saveFile(fileName, report.toByteArray(Charsets.UTF_8))) {
+                                    "FFCS clash report exported as $fileName."
+                                } else {
+                                    "Could not save the FFCS clash report."
                                 }
                             }
                         }
