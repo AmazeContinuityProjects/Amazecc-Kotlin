@@ -21,9 +21,11 @@ import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.School
+import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +36,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsBlockedSlotUi
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsFacultyPriorityUi
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsRankingFactor
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsRankingMode
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsRetryUi
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
@@ -81,7 +88,24 @@ data class M3EFfcsPlannerState(
     /** Search text over generated variant results (web parity: variantSearchQuery). */
     val resultsSearchQuery: String = "",
     /** Host-owned notice shown under the export control. */
-    val exportNotice: String? = null
+    val exportNotice: String? = null,
+    // ── D-184 real capability controls (null / empty means "not requested") ──
+    /** Null = no ranking profile requested; the typed engine keeps its un-ranked path. */
+    val rankingMode: M3EFfcsRankingMode? = null,
+    /** Only the factors the user actually enabled; empty = no factor ranking. */
+    val enabledRankingFactors: Set<M3EFfcsRankingFactor> = emptySet(),
+    /** Per-course faculty preference, best first. */
+    val facultyPriority: List<M3EFfcsFacultyPriorityUi> = emptyList(),
+    /** Draft text for the course code whose faculty priority is being edited. */
+    val priorityCourseInput: String = "",
+    /** Draft text for the faculty name being added to that course's priority. */
+    val priorityFacultyInput: String = "",
+    /** Real blocked offering keys from the ViewModel. */
+    val blockedSlots: List<M3EFfcsBlockedSlotUi> = emptyList(),
+    /** Draft text for a new offering key to block. */
+    val blockedSlotInput: String = "",
+    /** Drop-ladder opt-in and the outcome of the last real attempt. */
+    val dropRetry: M3EFfcsRetryUi = M3EFfcsRetryUi()
 )
 
 /** User intents emitted by [M3EFfcsPlannerScreen]. */
@@ -99,6 +123,20 @@ sealed interface M3EFfcsPlannerAction {
     data object ExportHtmlDossier : M3EFfcsPlannerAction
     data object Refresh : M3EFfcsPlannerAction
     data object Back : M3EFfcsPlannerAction
+    // ── D-184 ──
+    /** Cycle to the next real ranking profile (Default → the six web profiles). */
+    data object CycleRankingMode : M3EFfcsPlannerAction
+    data class ToggleRankingFactor(val factor: M3EFfcsRankingFactor) : M3EFfcsPlannerAction
+    data class SetPriorityCourseInput(val text: String) : M3EFfcsPlannerAction
+    data class SetPriorityFacultyInput(val text: String) : M3EFfcsPlannerAction
+    data class AddFacultyPriority(val code: String, val faculty: String) : M3EFfcsPlannerAction
+    data class PromoteFaculty(val code: String, val faculty: String) : M3EFfcsPlannerAction
+    data class ClearFacultyPriority(val code: String?) : M3EFfcsPlannerAction
+    data class SetBlockedSlotInput(val text: String) : M3EFfcsPlannerAction
+    data class AddBlockedSlot(val key: String) : M3EFfcsPlannerAction
+    data object ClearBlockedSlots : M3EFfcsPlannerAction
+    data class SetDropRetryEnabled(val enabled: Boolean) : M3EFfcsPlannerAction
+    data object RetryWithDrop : M3EFfcsPlannerAction
 }
 
 /**
@@ -178,6 +216,28 @@ fun M3EFfcsPlannerScreen(
                             onAction = onAction
                         )
                     }
+                    item(key = "ranking") {
+                        M3EFfcsRankingControls(
+                            mode = state.rankingMode,
+                            enabledFactors = state.enabledRankingFactors,
+                            onAction = onAction
+                        )
+                    }
+                    item(key = "faculty_priority") {
+                        M3EFfcsFacultyPriorityControls(
+                            priorities = state.facultyPriority,
+                            courseInput = state.priorityCourseInput,
+                            facultyInput = state.priorityFacultyInput,
+                            onAction = onAction
+                        )
+                    }
+                    item(key = "blocked_slots") {
+                        M3EFfcsBlockedSlotControls(
+                            blockedSlots = state.blockedSlots,
+                            input = state.blockedSlotInput,
+                            onAction = onAction
+                        )
+                    }
                     if (state.isLoading) {
                         item(key = "loading") {
                             M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW) {
@@ -243,6 +303,9 @@ fun M3EFfcsPlannerScreen(
                                 )
                             }
                         }
+                    }
+                    item(key = "drop_retry") {
+                        M3EFfcsDropRetryControls(dropRetry = state.dropRetry, onAction = onAction)
                     }
                     item(key = "results_search") {
                         OutlinedTextField(
@@ -390,6 +453,186 @@ private fun M3EFfcsFilterChips(
             onClick = { onAction(M3EFfcsPlannerAction.SetEarlyFinish(!earlyFinish)) },
             label = { Text("Early Finish", fontSize = 11.sp) }
         )
+    }
+}
+
+/** Ranking profile + ordered factor chips. Every control emits a real action. */
+@Composable
+private fun M3EFfcsRankingControls(
+    mode: M3EFfcsRankingMode?,
+    enabledFactors: Set<M3EFfcsRankingFactor>,
+    onAction: (M3EFfcsPlannerAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Ranking", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Button(onClick = { onAction(M3EFfcsPlannerAction.CycleRankingMode) }) {
+                    Text("Ranking: ${mode?.label ?: "Default"}", fontSize = 12.sp)
+                }
+            }
+            Text("Factors (position = weight)", fontSize = 11.sp, color = colors.onSurfaceVariant)
+            val factors = M3EFfcsRankingFactor.entries
+            factors.chunked(4).forEach { chunk ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    chunk.forEach { factor ->
+                        FilterChip(
+                            selected = factor in enabledFactors,
+                            onClick = { onAction(M3EFfcsPlannerAction.ToggleRankingFactor(factor)) },
+                            label = { Text(factor.label, fontSize = 10.sp) }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Per-course faculty preference. Empty priority means no preference is sent to the engine. */
+@Composable
+private fun M3EFfcsFacultyPriorityControls(
+    priorities: List<M3EFfcsFacultyPriorityUi>,
+    courseInput: String,
+    facultyInput: String,
+    onAction: (M3EFfcsPlannerAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Faculty priority", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = courseInput,
+                    onValueChange = { onAction(M3EFfcsPlannerAction.SetPriorityCourseInput(it)) },
+                    placeholder = { Text("Course code") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = facultyInput,
+                    onValueChange = { onAction(M3EFfcsPlannerAction.SetPriorityFacultyInput(it)) },
+                    placeholder = { Text("Faculty name") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(onClick = {
+                    if (courseInput.isNotBlank() && facultyInput.isNotBlank()) {
+                        onAction(M3EFfcsPlannerAction.AddFacultyPriority(courseInput.trim(), facultyInput.trim()))
+                    }
+                }) { Text("Add priority", fontSize = 12.sp) }
+                OutlinedButton(onClick = { onAction(M3EFfcsPlannerAction.ClearFacultyPriority(null)) }) {
+                    Text("Clear priorities", fontSize = 12.sp)
+                }
+            }
+            priorities.forEach { entry ->
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text("${entry.code}: ${entry.orderedFaculty.joinToString(" > ")}", fontSize = 11.sp, color = colors.onSurface)
+                    if (entry.orderedFaculty.size > 1) {
+                        Row(modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(onClick = {
+                                onAction(M3EFfcsPlannerAction.PromoteFaculty(entry.code, entry.orderedFaculty[1]))
+                            }) { Text("Raise ${entry.orderedFaculty[1]}", fontSize = 10.sp) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Blocked offering keys already held by the ViewModel, plus a real add/clear affordance. */
+@Composable
+private fun M3EFfcsBlockedSlotControls(
+    blockedSlots: List<M3EFfcsBlockedSlotUi>,
+    input: String,
+    onAction: (M3EFfcsPlannerAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Blocked slots", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedTextField(
+                    value = input,
+                    onValueChange = { onAction(M3EFfcsPlannerAction.SetBlockedSlotInput(it)) },
+                    placeholder = { Text("FACULTY|SLOT|ROOM") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(onClick = {
+                    if (input.isNotBlank()) onAction(M3EFfcsPlannerAction.AddBlockedSlot(input.trim()))
+                }) { Text("Block slot", fontSize = 12.sp) }
+            }
+            if (blockedSlots.isEmpty()) {
+                Text("No slots blocked.", fontSize = 11.sp, color = colors.onSurfaceVariant)
+            } else {
+                blockedSlots.forEach { blocked ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Text(blocked.label, fontSize = 11.sp, color = colors.onSurface)
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(onClick = { onAction(M3EFfcsPlannerAction.ClearBlockedSlots) }) {
+                        Text("Clear blocked", fontSize = 11.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Drop-ladder opt-in and a retry that is only offered after a real retryable failure. */
+@Composable
+private fun M3EFfcsDropRetryControls(
+    dropRetry: M3EFfcsRetryUi,
+    onAction: (M3EFfcsPlannerAction) -> Unit
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(modifier = Modifier.fillMaxWidth(), containerLevel = SurfaceContainerLevel.LOW) {
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Drop ladder", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
+            Text(
+                "Retry without the least-preferred course when a week cannot fit. Locked courses are never dropped.",
+                fontSize = 11.sp,
+                color = colors.onSurfaceVariant
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(onClick = { onAction(M3EFfcsPlannerAction.SetDropRetryEnabled(!dropRetry.enabled)) }) {
+                    Text(if (dropRetry.enabled) "Drop retry: On" else "Drop retry: Off", fontSize = 12.sp)
+                }
+                if (dropRetry.canRetry) {
+                    OutlinedButton(onClick = { onAction(M3EFfcsPlannerAction.RetryWithDrop) }) {
+                        Text("Retry with drop", fontSize = 12.sp)
+                    }
+                }
+            }
+            if (dropRetry.droppedCodes.isNotEmpty()) {
+                Text(
+                    "Left out on the last attempt: ${dropRetry.droppedCodes.joinToString(", ")}",
+                    fontSize = 11.sp,
+                    color = colors.onSurfaceVariant
+                )
+            }
+        }
     }
 }
 

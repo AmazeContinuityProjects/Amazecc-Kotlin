@@ -16,7 +16,17 @@ import androidx.compose.ui.text.AnnotatedString
 import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.domain.overhaul.M3EEventRegistrationUi
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsBlockedSlotUi
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsFacultyPriorityUi
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsRankingFactor
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsRankingMode
+import com.amazecc.app.shared.domain.overhaul.M3EFfcsRetryUi
+import com.amazecc.app.shared.ffcs.DropFailure
 import com.amazecc.app.shared.ffcs.ParsedCourse
+import com.amazecc.app.shared.ffcs.isRetryableFailure
+import com.amazecc.app.shared.ffcs.planner.RankingFactor as EngineRankingFactor
+import com.amazecc.app.shared.ffcs.planner.RankingFactorsConfig
+import com.amazecc.app.shared.ffcs.planner.RankingMode as EngineRankingMode
 import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AcademicDerivers.resolveCurrentSemester
 import com.amazecc.app.shared.state.AcademicDerivers.toAttendanceItem
@@ -24,6 +34,7 @@ import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.BusyEntry
 import com.amazecc.app.shared.state.SocialClient.FfcsMatchRequest
+import com.amazecc.app.shared.state.FfcsRuntimeOutcome
 import com.amazecc.app.shared.state.FfcsViewModel
 import com.amazecc.app.shared.state.FriendsViewModel
 import com.amazecc.app.shared.state.Screen
@@ -831,6 +842,13 @@ fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
     val isGenerating by FfcsViewModel.isGenerating.collectAsState()
     val error by FfcsViewModel.errorMsg.collectAsState()
     val generateOptions by FfcsViewModel.generateOptions.collectAsState()
+    // D-184: every capability control below is backed by a real ViewModel flow.
+    val rankingMode by FfcsViewModel.rankingMode.collectAsState()
+    val rankingFactors by FfcsViewModel.rankingFactors.collectAsState()
+    val facultyPriority by FfcsViewModel.facultyPriority.collectAsState()
+    val blockedSlots by FfcsViewModel.blockedSlots.collectAsState()
+    val dropRetryEnabled by FfcsViewModel.dropRetryEnabled.collectAsState()
+    val lastRunOutcome by FfcsViewModel.lastRunOutcome.collectAsState()
 
     val domain by AppState.domain.collectAsState()
     val selectedSemId by AppState.selectedSemester.collectAsState()
@@ -842,6 +860,9 @@ fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
     var selectedResultId by remember { mutableStateOf<String?>(null) }
     var resultsSearchQuery by remember { mutableStateOf("") }
     var exportNotice by remember { mutableStateOf<String?>(null) }
+    var priorityCourseInput by remember { mutableStateOf("") }
+    var priorityFacultyInput by remember { mutableStateOf("") }
+    var blockedSlotInput by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         if (offerings.isEmpty()) {
@@ -888,6 +909,46 @@ fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
             }
     }
 
+    // D-184 derived UI state: only real ViewModel values, never fabricated defaults.
+    val uiRankingMode = remember(rankingMode) {
+        when (rankingMode) {
+            EngineRankingMode.BEST_FACULTY -> M3EFfcsRankingMode.BEST_FACULTY
+            EngineRankingMode.BALANCED -> M3EFfcsRankingMode.BALANCED
+            EngineRankingMode.HALF_DAYS -> M3EFfcsRankingMode.HALF_DAYS
+            EngineRankingMode.MINIMIZE_GAPS -> M3EFfcsRankingMode.MINIMIZE_GAPS
+            EngineRankingMode.EARLY_FINISH -> M3EFfcsRankingMode.EARLY_FINISH
+            EngineRankingMode.LATE_START -> M3EFfcsRankingMode.LATE_START
+            null -> null
+        }
+    }
+    val enabledRankingFactors = remember(rankingFactors) {
+        val config: RankingFactorsConfig? = rankingFactors
+        if (config == null) {
+            emptySet()
+        } else {
+            val disabled = config.disabled.toSet()
+            config.order.filterNot { it in disabled }.mapNotNull { factor ->
+                M3EFfcsRankingFactor.entries.firstOrNull { it.wire == factor.value }
+            }.toSet()
+        }
+    }
+    val uiFacultyPriority = remember(facultyPriority) {
+        facultyPriority.map { (code, ordered) -> M3EFfcsFacultyPriorityUi(code, ordered) }
+    }
+    val uiBlockedSlots = remember(blockedSlots) {
+        blockedSlots.map { M3EFfcsBlockedSlotUi(it, it) }
+    }
+    val failedOutcome = lastRunOutcome as? FfcsRuntimeOutcome.Failed
+    val canRetry = remember(failedOutcome) {
+        val code = failedOutcome?.code
+        code != null && isRetryableFailure(DropFailure("error", code.wire, null))
+    }
+    val uiDropRetry = M3EFfcsRetryUi(
+        enabled = dropRetryEnabled,
+        canRetry = canRetry,
+        droppedCodes = failedOutcome?.droppedCodes.orEmpty()
+    )
+
     AmazeM3ETheme(isDark = isDark) {
         M3EFfcsPlannerScreen(
             state = M3EFfcsPlannerState(
@@ -905,7 +966,15 @@ fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
                 lateStart = generateOptions.lateStart,
                 earlyFinish = generateOptions.earlyFinish,
                 resultsSearchQuery = resultsSearchQuery,
-                exportNotice = exportNotice
+                exportNotice = exportNotice,
+                rankingMode = uiRankingMode,
+                enabledRankingFactors = enabledRankingFactors,
+                facultyPriority = uiFacultyPriority,
+                priorityCourseInput = priorityCourseInput,
+                priorityFacultyInput = priorityFacultyInput,
+                blockedSlots = uiBlockedSlots,
+                blockedSlotInput = blockedSlotInput,
+                dropRetry = uiDropRetry
             ),
             onAction = { action ->
                 when (action) {
@@ -976,6 +1045,55 @@ fun M3EFfcsPlannerScreenHost(modifier: Modifier = Modifier) {
                                 }
                             }
                         }
+                    }
+                    is M3EFfcsPlannerAction.CycleRankingMode -> {
+                        val modes = M3EFfcsRankingMode.entries
+                        val currentMode = uiRankingMode
+                        val next: M3EFfcsRankingMode? = when {
+                            currentMode == null -> modes.first()
+                            modes.indexOf(currentMode) == modes.lastIndex -> null // back to Default
+                            else -> modes[modes.indexOf(currentMode) + 1]
+                        }
+                        FfcsViewModel.setRankingMode(
+                            next?.let { mode -> EngineRankingMode.entries.firstOrNull { it.value == mode.wire } }
+                        )
+                    }
+                    is M3EFfcsPlannerAction.ToggleRankingFactor -> {
+                        val engineFactor = EngineRankingFactor.entries
+                            .firstOrNull { it.value == action.factor.wire }
+                        if (engineFactor != null) {
+                            FfcsViewModel.setRankingFactorEnabled(
+                                engineFactor,
+                                action.factor !in enabledRankingFactors
+                            )
+                        }
+                    }
+                    is M3EFfcsPlannerAction.SetPriorityCourseInput -> priorityCourseInput = action.text
+                    is M3EFfcsPlannerAction.SetPriorityFacultyInput -> priorityFacultyInput = action.text
+                    is M3EFfcsPlannerAction.AddFacultyPriority -> {
+                        val existing = facultyPriority[action.code.uppercase()].orEmpty()
+                        if (action.faculty !in existing) {
+                            FfcsViewModel.setFacultyPriorityForCourse(action.code, existing + action.faculty)
+                        }
+                        priorityFacultyInput = ""
+                    }
+                    is M3EFfcsPlannerAction.PromoteFaculty ->
+                        FfcsViewModel.promoteFaculty(action.code, action.faculty)
+                    is M3EFfcsPlannerAction.ClearFacultyPriority -> {
+                        FfcsViewModel.clearFacultyPriority(action.code)
+                        if (action.code == null) priorityCourseInput = ""
+                    }
+                    is M3EFfcsPlannerAction.SetBlockedSlotInput -> blockedSlotInput = action.text
+                    is M3EFfcsPlannerAction.AddBlockedSlot -> {
+                        FfcsViewModel.setBlockedSlot(action.key, true)
+                        blockedSlotInput = ""
+                    }
+                    is M3EFfcsPlannerAction.ClearBlockedSlots -> FfcsViewModel.clearBlockedSlots()
+                    is M3EFfcsPlannerAction.SetDropRetryEnabled ->
+                        FfcsViewModel.setDropRetryEnabled(action.enabled)
+                    is M3EFfcsPlannerAction.RetryWithDrop -> {
+                        activeTab = M3EFfcsTab.RESULTS
+                        FfcsViewModel.retryWithDrop()
                     }
                     is M3EFfcsPlannerAction.Refresh -> {
                         val domainCourses = domain.academics.semesters[selectedSemId]?.courses?.values

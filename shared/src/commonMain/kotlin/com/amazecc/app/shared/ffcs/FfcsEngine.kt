@@ -894,7 +894,14 @@ object FfcsEngine {
             )
         }
         val blocked = blockedSlots.mapNotNull { key ->
-            key.substringAfter('|', key).trim().uppercase().takeIf { it.isNotEmpty() }
+            // Keys are FACULTY|SLOT|ROOM (or a bare slot). Reduce to the bare slot so
+            // the engine's slotSpellings comparison can actually match (same as the
+            // typed path in FfcsViewModel.buildEngineParams).
+            key.substringAfter('|', key)
+                .substringBefore('|')
+                .trim()
+                .uppercase()
+                .takeIf { it.isNotEmpty() }
         }
 
         val result = generate(

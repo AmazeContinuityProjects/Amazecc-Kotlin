@@ -1749,3 +1749,51 @@ sealed interface M3EAttendancePredictorAction {
     data class ToggleCourseExpanded(val code: String?) : M3EAttendancePredictorAction
     data object NavigateBack : M3EAttendancePredictorAction
 }
+
+// ==========================================
+// 25. FFCS RUNTIME CAPABILITIES IMMUTABLE STATE & ACTIONS (D-184)
+// ==========================================
+// These are UI-facing projections only. The host maps them to the typed D-180/D-181
+// engine values; nothing here fabricates a ranking profile, faculty preference or
+// drop outcome. Every value reflects a real user choice or a real generation result.
+
+/** The six web ranking profiles, in canonical order. Wire values match `RankingMode`. */
+enum class M3EFfcsRankingMode(val label: String, val wire: String) {
+    BALANCED("Balanced", "Balanced"),
+    BEST_FACULTY("Best Faculty", "Best Faculty"),
+    HALF_DAYS("Half Days", "Half Days"),
+    MINIMIZE_GAPS("Minimize Gaps", "Minimize Gaps"),
+    EARLY_FINISH("Early Finish", "Early Finish"),
+    LATE_START("Late Start", "Late Start")
+}
+
+/** One of the eight ordered ranking factors, with its engine wire value. */
+enum class M3EFfcsRankingFactor(val label: String, val wire: String) {
+    GAPS("Gaps", "gaps"),
+    HALF_DAYS("Half days", "halfdays"),
+    SOCIAL("Social", "social"),
+    FACULTY("Faculty", "faculty"),
+    EARLY_FINISH("Early finish", "earlyFinish"),
+    LATE_START("Late start", "lateStart"),
+    BALANCED_LOAD("Balanced load", "balancedLoad"),
+    TIME("Time", "time")
+}
+
+/** One course's ordered faculty preference, best first. Empty list = no preference. */
+data class M3EFfcsFacultyPriorityUi(
+    val code: String,
+    val orderedFaculty: List<String> = emptyList()
+)
+
+/** A real blocked offering key (`FACULTY|SLOT|ROOM`) as shown in the planner. */
+data class M3EFfcsBlockedSlotUi(
+    val key: String,
+    val label: String
+)
+
+/** Whether the last real generation attempt was a retryable failure. */
+data class M3EFfcsRetryUi(
+    val enabled: Boolean = false,
+    val canRetry: Boolean = false,
+    val droppedCodes: List<String> = emptyList()
+)
