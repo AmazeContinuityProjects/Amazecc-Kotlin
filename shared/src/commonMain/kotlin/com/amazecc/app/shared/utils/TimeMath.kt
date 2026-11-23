@@ -150,4 +150,26 @@ object TimeMath {
         }
         return out.toString()
     }
+
+    /**
+     * D-172: strict schema clock parser, ported from `slots.ts:timeToMinutes`
+     * (ffcs-planner reference/03 §3.1). Unlike [parseTimeToMinutes] — the web-parity
+     * parser, which accepts a bare 24-hour clock — a missing `AM`/`PM` suffix here
+     * is **invalid** and returns null. Schema periods always carry a meridian.
+     *
+     * Added as a new entry point so the existing web-parity signature is unchanged;
+     * `com.amazecc.app.shared.ffcs.parseTimeToMinutes` delegates here.
+     */
+    fun parseSchemaTimeToMinutes(time: String?): Int? {
+        val match = Regex("""^(\d{1,2}):(\d{2})\s*(AM|PM)?$""", RegexOption.IGNORE_CASE)
+            .matchEntire(time?.trim() ?: return null) ?: return null
+        var hours = match.groupValues[1].toIntOrNull() ?: return null
+        val minutes = match.groupValues[2].toIntOrNull() ?: return null
+        val period = match.groupValues[3].uppercase()
+        if (hours > 23 || minutes > 59) return null
+        if (period.isEmpty()) return null // A 24h time is not in this schema.
+        if (period == "PM" && hours != 12) hours += 12
+        else if (period == "AM" && hours == 12) hours = 0
+        return hours * 60 + minutes
+    }
 }

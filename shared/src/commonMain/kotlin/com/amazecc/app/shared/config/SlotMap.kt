@@ -340,4 +340,69 @@ object SlotMap {
         }
         return null
     }
+
+    // ---- D-172 additions: canonical lab vocabulary derived from `map` ----
+    // Everything below is computed from the existing source table; no token array
+    // is hand-listed, so the lab-window sets cannot drift from the real slot map.
+
+    private fun isLabToken(token: String): Boolean =
+        token.length > 1 && token.startsWith("L") && token.drop(1).all { it.isDigit() }
+
+    /** Every lab token id in the source data (weekday `L1..L60` + weekend `L71..L94`). */
+    fun labTokens(): Set<String> =
+        map.values.flatMap { it.keys }.filter { isLabToken(it) }.toSet()
+
+    /** Every non-lab (theory) token id in the source data. */
+    fun theoryTokens(): Set<String> =
+        map.values.flatMap { it.keys }.filterNot { isLabToken(it) }.toSet()
+
+    /** Lab tokens grouped by clock start; key is minutes since midnight. */
+    private fun labTokensByClockStart(): Map<Int, Set<String>> {
+        val out = LinkedHashMap<Int, MutableSet<String>>()
+        // The generated `SLOTS_BY_PERIOD` this replaces is the weekday lab map
+        // (reference/03 §3.4: Mon..Fri only), so weekend L71..L94 are excluded.
+        for (day in weekdays) {
+            for ((token, raw) in map[day].orEmpty()) {
+                if (!isLabToken(token)) continue
+                val (start, _) = slotRange(raw)
+                if (start <= 0) continue
+                out.getOrPut(start) { linkedSetOf() }.add(token)
+            }
+        }
+        return out.mapValues { it.value.toSet() }
+    }
+
+    /**
+     * D-172 / ffcs-planner reference/05 §3.1 — the `SLOTS_BY_PERIOD` equivalent.
+     * Period ids `L01..L13` are chronological lab clock periods; `L07` is the
+     * 1:20 PM lunch gap and has no source tokens. Derived from [map], never a
+     * hard-coded token array.
+     */
+    fun labTokensOf(periodId: String): Set<String> {
+        val n = periodId.trim().uppercase().removePrefix("L").toIntOrNull() ?: return emptySet()
+        val byStart = labTokensByClockStart()
+        val starts = byStart.keys.sorted()
+        val start = when (n) {
+            in 1..6 -> starts.getOrNull(n - 1)
+            in 8..13 -> starts.getOrNull(n - 2) // L07 = lunch, no source tokens
+            else -> null
+        } ?: return emptySet()
+        return byStart[start] ?: emptySet()
+    }
+
+    /** `L01..L04` resolved via [labTokensOf] — core morning lab windows. */
+    fun coreMorningLabSlots(): Set<String> =
+        listOf("L01", "L02", "L03", "L04").flatMap { labTokensOf(it) }.toSet()
+
+    /** `L08..L11` resolved via [labTokensOf] — core evening lab windows. */
+    fun coreEveningLabSlots(): Set<String> =
+        listOf("L08", "L09", "L10", "L11").flatMap { labTokensOf(it) }.toSet()
+
+    /** `L05..L06` resolved via [labTokensOf] — late morning lab windows. */
+    fun lateMorningLabSlots(): Set<String> =
+        listOf("L05", "L06").flatMap { labTokensOf(it) }.toSet()
+
+    /** `L12..L13` resolved via [labTokensOf] — late evening lab windows. */
+    fun lateEveningLabSlots(): Set<String> =
+        listOf("L12", "L13").flatMap { labTokensOf(it) }.toSet()
 }

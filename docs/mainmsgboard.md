@@ -307,3 +307,6 @@ Before starting a central verifier, append a `BUILD` entry with your log name. B
 - FIX gate_features6 (2 test failures): faculty sheet test must register FACULTY_SCHEDULE_OVERLAY_ID before dismissal (new LIFO guard); free-classroom test now asserts the removed fabricated capacity is NOT shown. Re-running gate_features7.
 ### [2026-11-22 22:45] gate_docscan2 EXIT 0, 1522 tests (auto document scanning)
 - Device-only checks still required: ML Kit FULL scanner launch/result on device; cancel/null honesty; OpenCV fallback trigger; content-URI readability after result; debug/release APK size with OpenCV ABIs; crop reset + manual crop after scan; Activity rotation leak.
+### [2026-11-23] session-mother - CLAIM (FFCS planner port + docs swarm)
+- Using @ffcs-planner (17-unit contract) + @swarm + @junior-docs-swarm. Kotlin: D-171..D-186 in 3 waves, disjoint files, gate/Critic per wave. Docs: DOC-001..DOC-007 authored in AmazeCC-Kotlin/docs/05-ffcs-planner, wired into AmazeContinuityProjects/docs (Mintlify) via docs.base.json + multirepo workflow; never edit generated docs.json/amazecc/.
+- Next D-ID D-171. Docs repo currently clean on branch docs/add-amazeui-source. User artifacts FKVIT_VS_AMAZECC_COMPARISON.md and M3E_AUDIT_REPORT.md remain untouched.
