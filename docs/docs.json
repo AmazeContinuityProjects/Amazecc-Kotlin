@@ -1,0 +1,30 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "AmazeCC Kotlin",
+  "navigation": {
+    "groups": [
+      {
+        "group": "FFCS Planner",
+        "icon": "calendar-days",
+        "expanded": true,
+        "pages": [
+          {
+            "group": "FFCS Planner handbook",
+            "root": "05-ffcs-planner/index",
+            "pages": [
+              "05-ffcs-planner/vocabulary",
+              "05-ffcs-planner/architecture",
+              "05-ffcs-planner/data-model",
+              "05-ffcs-planner/generation-engine",
+              "05-ffcs-planner/ranking-and-priority",
+              "05-ffcs-planner/drop-ladder-and-errors",
+              "05-ffcs-planner/share-and-storage",
+              "05-ffcs-planner/ui-and-state"
+            ],
+            "expanded": true
+          }
+        ]
+      }
+    ]
+  }
+}
