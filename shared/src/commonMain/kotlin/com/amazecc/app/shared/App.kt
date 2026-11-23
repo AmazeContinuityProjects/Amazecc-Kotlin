@@ -62,20 +62,12 @@ import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 
-/**
- * D-116: Screen still has no TIMETABLE constant, so that one surface keeps a named
- * LIFO overlay id. D-153 moved the academic report to a real Screen route, so it is
- * no longer an overlay and it keeps the bottom nav bar visible.
- */
-private const val TIMETABLE_OVERLAY_ID = "m3e-timetable"
-
 /** The one destination ↔ Screen mapping used by the canonical M3E scaffold. */
 private fun screenForM3eDestination(destination: M3EDestination): Screen = when (destination) {
     M3EDestination.HOME -> Screen.HOME
     M3EDestination.ATTENDANCE -> Screen.ATTENDANCE
     M3EDestination.ACADEMICS -> Screen.ACADEMICS
-    // TIMETABLE is a named overlay route; MORE is its visible home while open.
-    M3EDestination.TIMETABLE, M3EDestination.MORE -> Screen.MORE
+    M3EDestination.MORE -> Screen.MORE
 }
 
 private fun m3eDestinationForScreen(screen: Screen): M3EDestination = when (screen) {
@@ -211,11 +203,7 @@ fun App() {
                     palettePreset = com.amazecc.app.shared.ui.m3e.theme.palettePresetForAccent(currentAccent)
                 ) {
                     val overlayStack by AppState.overlayStack.collectAsState()
-                    val timetableOpen = TIMETABLE_OVERLAY_ID in overlayStack
-                    val currentDestination = when {
-                        timetableOpen -> M3EDestination.TIMETABLE
-                        else -> m3eDestinationForScreen(currentScreen)
-                    }
+                    val currentDestination = m3eDestinationForScreen(currentScreen)
                     val tabSwitchSpec =
                         com.amazecc.app.shared.ui.m3e.theme.M3ETheme.motion.tabSwitchTransform()
 
@@ -225,21 +213,12 @@ fun App() {
                         M3EAppScaffold(
                             currentDestination = currentDestination,
                             onDestinationSelected = { destination ->
-                                when (destination) {
-                                    M3EDestination.TIMETABLE -> {
-                                        AppState.pushOverlay(TIMETABLE_OVERLAY_ID)
-                                    }
-                                    else -> {
-                                        AppState.popOverlay(TIMETABLE_OVERLAY_ID)
-                                        AppState.navigateTo(screenForM3eDestination(destination))
-                                    }
-                                }
+                                AppState.navigateTo(screenForM3eDestination(destination))
                             },
                             modifier = Modifier.fillMaxSize(),
                             navigationVisible = currentScreen != Screen.LOGIN &&
                                 currentScreen != Screen.SPLASH &&
-                                currentScreen != Screen.ONBOARDING &&
-                                !timetableOpen
+                                currentScreen != Screen.ONBOARDING
                         ) {
                     // Global Spotlight Search Overlay
                     val commandPaletteOpen by AppState.commandPaletteOpen.collectAsState()
@@ -376,15 +355,6 @@ fun App() {
                     }
 
                     } // M3EAppScaffold content — navigation and insets owned by the scaffold.
-
-                    // D-116: the timetable is the only remaining full-screen LIFO overlay.
-                    // The academic report is a normal Screen route with the nav bar visible.
-                    if (timetableOpen) {
-                        M3ETimetableHost(
-                            modifier = Modifier.fillMaxSize(),
-                            onClose = { AppState.popOverlay(TIMETABLE_OVERLAY_ID) }
-                        )
-                    }
 
                     // Material 3 Expressive Sync Notification & Modal (replaces legacy popup)
                     if (currentScreen != Screen.LOGIN && currentScreen != Screen.SPLASH) {

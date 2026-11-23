@@ -180,7 +180,6 @@ sealed interface M3EAttendanceAction {
 enum class M3EDestination(val label: String) {
     HOME("Home"),
     ATTENDANCE("Attendance"),
-    TIMETABLE("Timetable"),
     ACADEMICS("Academics"),
     MORE("More")
 }

@@ -1,7 +1,5 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -41,15 +39,15 @@ import com.amazecc.app.shared.model.KohaDetailBook
 import com.amazecc.app.shared.model.KohaHolding
 import com.amazecc.app.shared.model.NamedCalendar
 import com.amazecc.app.shared.model.PaymentItem
-import com.amazecc.app.shared.model.TimetableRes
 import com.amazecc.app.shared.repository.SettingsManager
+import com.amazecc.app.shared.state.AcademicDerivers
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
+import com.amazecc.app.shared.state.SemesterData
 import com.amazecc.app.shared.state.TimetableSlot
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.components.AppBackHandler
-import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.utils.ChangelogEntry
 import com.amazecc.app.shared.utils.ContentData
@@ -1206,9 +1204,80 @@ private fun splitTimetableTime(raw: String?): Pair<String, String> {
 }
 
 /**
- * Stateful host for [M3ETimetableScreen] (D-116). Reads the same cached timetable the
- * sync module writes, maps the real day × slot rows into immutable screen state, and
- * makes Refresh call the real credentialed client. No timetable data is invented here.
+ * Pure derivation behind [M3ETimetableHost], extracted so the real-data mapping is testable
+ * without mounting Compose (D-186 part B).
+ *
+ * `TimetableRes.slots` has no producer in this codebase, so the timetable can no longer be read
+ * from that transport payload. The synced academic store is the single source of truth:
+ * [AcademicDerivers.buildWeeklyTimetable] expands every real `StoredCourse.slots` code through
+ * `SlotMap` into one [TimetableSlot] per (day, slot), carrying time, venue and attendance.
+ */
+internal data class M3ETimetableHostData(
+    val days: List<M3ETimetableDay>,
+    val totalCourses: Int,
+    /** False when no real slot could be derived — i.e. an honest "nothing synced yet" state. */
+    val hasSyncedTimetable: Boolean
+)
+
+internal fun buildM3ETimetableHostData(
+    semester: SemesterData?,
+    todayKey: String,
+    selectedDayIndex: Int
+): M3ETimetableHostData {
+    val weeklySlots: List<TimetableSlot> =
+        semester?.let { AcademicDerivers.buildWeeklyTimetable(it) }.orEmpty()
+
+    val days = M3E_TIMETABLE_DAY_KEYS.mapIndexed { index, key ->
+        val rows = weeklySlots.filter { it.day?.trim()?.uppercase() == key }
+        val slots = rows.mapIndexed { slotIndex, row ->
+            val (start, end) = splitTimetableTime(row.time)
+            val pct = row.attendancePercentage
+            M3ETimetableSlot(
+                id = "$key-${row.slotName.orEmpty()}-${row.courseCode.orEmpty()}-$slotIndex",
+                slot = row.slotName.orEmpty(),
+                courseCode = row.courseCode.orEmpty(),
+                courseTitle = row.courseTitle.orEmpty(),
+                venue = row.venue.orEmpty(),
+                faculty = row.faculty.orEmpty(),
+                startTime = start,
+                endTime = end,
+                isHappeningNow = false,
+                attendanceTone = when {
+                    pct == null -> M3ECardTone.NEUTRAL
+                    pct >= 75.0 -> M3ECardTone.GOOD
+                    pct >= 65.0 -> M3ECardTone.WARNING
+                    else -> M3ECardTone.CRITICAL
+                },
+                attendancePercentage = pct,
+                isLab = row.courseType?.contains("lab", ignoreCase = true) == true
+            )
+        }
+        M3ETimetableDay(
+            dayName = m3eTimetableDayName(key),
+            shortName = key.lowercase().replaceFirstChar { it.uppercase() },
+            dayNumber = index + 1,
+            isToday = key == todayKey,
+            isSelected = index == selectedDayIndex,
+            slots = slots,
+            freeHoursCount = (10 - slots.size).coerceAtLeast(0)
+        )
+    }
+
+    return M3ETimetableHostData(
+        days = days,
+        totalCourses = weeklySlots.mapNotNull { it.courseCode }.distinct().size,
+        hasSyncedTimetable = weeklySlots.isNotEmpty()
+    )
+}
+
+/**
+ * Stateful host for [M3ETimetableScreen] (D-116). Collects the already-synced academic store,
+ * expands the selected semester's real course slots through [AcademicDerivers], and maps them
+ * into immutable screen state. No timetable data is invented here.
+ *
+ * There is deliberately no local refresh: neither [M3ETimetableScreen] nor [M3ETimetableSheet]
+ * emits `M3ETimetableAction.Refresh`, so the old handler was dead code. Sync is owned centrally
+ * by the app, and the screen's `isLoading` reflects that real sync state instead of a button press.
  */
 @Composable
 fun M3ETimetableHost(
@@ -1220,93 +1289,31 @@ fun M3ETimetableHost(
     val isDark = M3EStateBridge.isDarkThemeActive()
     val selectedSemId by AppState.selectedSemester.collectAsState()
     val semesterMap by AppState.semesterMap.collectAsState()
-    val domain by AppState.domain.collectAsState()
-    val scope = rememberCoroutineScope()
+    val academic by AppState.academic.collectAsState()
+    val isSyncing by AppState.isLoading.collectAsState()
 
-    var timetableRes by remember {
-        mutableStateOf<TimetableRes?>(AmazeClient.fallbackCachedTimetable(selectedSemId))
-    }
     var viewMode by remember {
         mutableStateOf(if (sheetMode) TimetableViewMode.VERTICAL else TimetableViewMode.SCHEDULE)
     }
     var denseGrid by remember { mutableStateOf(false) }
     var selectedDayIndex by remember { mutableStateOf(0) }
-    var isRefreshing by remember { mutableStateOf(false) }
-    var loadError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(selectedSemId) {
-        timetableRes = AmazeClient.fallbackCachedTimetable(selectedSemId)
-        loadError = null
         selectedDayIndex = 0
-    }
-
-    fun refreshTimetable() {
-        scope.launch {
-            isRefreshing = true
-            loadError = null
-            try {
-                val res = AmazeClient.getTimetable(selectedSemId)
-                timetableRes = res
-                loadError = if (res.success) null else {
-                    listOfNotNull(
-                        res.error?.takeIf { it.isNotBlank() },
-                        res.message?.takeIf { it.isNotBlank() }
-                    ).firstOrNull() ?: "Could not refresh the timetable"
-                }
-            } catch (e: Exception) {
-                loadError = e.message ?: "Could not refresh the timetable"
-            } finally {
-                isRefreshing = false
-            }
-        }
     }
 
     val todayKey = remember {
         Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault()).date.dayOfWeek.name.take(3)
     }
 
-    val days = remember(timetableRes, todayKey) {
-        M3E_TIMETABLE_DAY_KEYS.mapIndexed { index, key ->
-            val rows = timetableRes?.slots.orEmpty().filter { it.day?.trim()?.uppercase() == key }
-            val slots = rows.mapIndexed { slotIndex, row ->
-                val (start, end) = splitTimetableTime(row.time)
-                val pct = row.attendancePercentage
-                M3ETimetableSlot(
-                    id = "$key-${row.slotName.orEmpty()}-${row.courseCode.orEmpty()}-$slotIndex",
-                    slot = row.slotName.orEmpty(),
-                    courseCode = row.courseCode.orEmpty(),
-                    courseTitle = row.courseTitle.orEmpty(),
-                    venue = row.venue.orEmpty(),
-                    faculty = row.faculty.orEmpty(),
-                    startTime = start,
-                    endTime = end,
-                    isHappeningNow = false,
-                    attendanceTone = when {
-                        pct == null -> M3ECardTone.NEUTRAL
-                        pct >= 75.0 -> M3ECardTone.GOOD
-                        pct >= 65.0 -> M3ECardTone.WARNING
-                        else -> M3ECardTone.CRITICAL
-                    },
-                    attendancePercentage = pct,
-                    isLab = row.courseType?.contains("lab", ignoreCase = true) == true
-                )
-            }
-            M3ETimetableDay(
-                dayName = m3eTimetableDayName(key),
-                shortName = key.lowercase().replaceFirstChar { it.uppercase() },
-                dayNumber = index + 1,
-                isToday = key == todayKey,
-                isSelected = index == selectedDayIndex,
-                slots = slots,
-                freeHoursCount = (10 - slots.size).coerceAtLeast(0)
-            )
-        }
+    val semester = academic.semesters[selectedSemId]
+    val hostData = remember(semester, todayKey, selectedDayIndex) {
+        buildM3ETimetableHostData(semester, todayKey, selectedDayIndex)
     }
-
+    val days = hostData.days
     val safeDayIndex = selectedDayIndex.coerceIn(0, (days.size - 1).coerceAtLeast(0))
-    val semester = domain.academics.semesters[selectedSemId]
     val semesterName = semesterMap[selectedSemId]
-        ?: semester?.name
+        ?: semester?.semesterName
         ?: selectedSemId.ifBlank { "Current semester" }
     val state = M3ETimetableState(
         semesterName = semesterName,
@@ -1314,8 +1321,8 @@ fun M3ETimetableHost(
         days = days.mapIndexed { index, day -> day.copy(isSelected = index == safeDayIndex) },
         viewMode = viewMode,
         totalCredits = semester?.courses?.values?.sumOf { it.credits?.toDoubleOrNull()?.toInt() ?: 0 } ?: 0,
-        totalCourses = timetableRes?.slots.orEmpty().mapNotNull { it.courseCode }.distinct().size,
-        isLoading = isRefreshing,
+        totalCourses = hostData.totalCourses,
+        isLoading = isSyncing,
         denseGrid = denseGrid
     )
 
@@ -1325,7 +1332,9 @@ fun M3ETimetableHost(
             is M3ETimetableAction.SetViewMode -> viewMode = action.mode
             is M3ETimetableAction.SetDenseGrid -> denseGrid = action.enabled
             is M3ETimetableAction.SlotClicked -> Unit // the screen already renders slot details
-            M3ETimetableAction.Refresh -> refreshTimetable()
+            // Refresh has no emitter: no screen or sheet exposes a refresh control. Intentionally
+            // inert rather than faking a network call the app does not own here.
+            else -> Unit
         }
     }
 
@@ -1337,7 +1346,9 @@ fun M3ETimetableHost(
                 onAction = onTimetableAction,
                 onDismiss = onClose,
                 modifier = modifier,
-                errorMessage = loadError
+                // The sheet has no empty-copy slot; reuse its notice line so an unsynced week
+                // is not silently presented as an empty grid.
+                errorMessage = if (hostData.hasSyncedTimetable) null else NO_TIMETABLE_NOTICE
             )
         }
     } else {
@@ -1345,31 +1356,18 @@ fun M3ETimetableHost(
             M3ETimetableScreen(
                 state = state,
                 onAction = onTimetableAction,
-                modifier = modifier
+                modifier = modifier,
+                hasSyncedTimetable = hostData.hasSyncedTimetable
             )
-        }
-    }
-    // In sheet mode the error is rendered inline by M3ETimetableSheet, so never stack a
-    // second Dialog on top of the already-open sheet.
-    if (!sheetMode && loadError != null) {
-        AmazeM3ETheme(isDark = isDark) {
-            M3EDismissibleSheet(
-                isOpen = true,
-                onDismiss = { loadError = null },
-                title = "Timetable refresh failed"
-            ) {
-                Text(
-                    text = loadError.orEmpty(),
-                    color = com.amazecc.app.shared.ui.m3e.theme.M3ETheme.colors.onSurface,
-                    modifier = Modifier.padding(horizontal = 20.dp)
-                )
-            }
         }
     }
     if (!sheetMode) {
         AppBackHandler(onBack = onClose)
     }
 }
+
+internal const val NO_TIMETABLE_NOTICE =
+    "No timetable synced yet — classes appear here after your academic data is synced."
 
 // ==========================================
 // STUDENT REPORT (D-115)

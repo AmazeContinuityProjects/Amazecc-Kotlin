@@ -23,6 +23,7 @@ import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -61,7 +62,13 @@ import org.jetbrains.compose.ui.tooling.preview.Preview
 fun M3ETimetableScreen(
     state: M3ETimetableState,
     onAction: (M3ETimetableAction) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /**
+     * False only when the synced academic store yielded no real slots at all. Keeps an
+     * unsynced week distinct from a genuinely free day (D-186 part B). Defaults to true so
+     * previews and stateless callers keep the familiar "free day" copy.
+     */
+    hasSyncedTimetable: Boolean = true
 ) {
     val colors = M3ETheme.colors
     val selectedDay = state.days.getOrNull(state.selectedDayIndex)
@@ -103,6 +110,14 @@ fun M3ETimetableScreen(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Honest sync progress: only shown when the host reports a real, central sync.
+            // There is no local refresh action on this screen, so this is never faked.
+            if (state.isLoading) {
+                item(key = "sync_progress") {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+            }
+
             // View Mode Switcher (Schedule vs Vertical Grid vs Horizontal Grid)
             item(key = "view_mode_switcher") {
                 M3EConnectedButtonGroup(
@@ -176,13 +191,21 @@ fun M3ETimetableScreen(
                                         modifier = Modifier.size(40.dp)
                                     )
                                     Text(
-                                        text = "No classes scheduled for ${selectedDay?.dayName ?: "this day"}",
+                                        text = if (hasSyncedTimetable) {
+                                            "No classes scheduled for ${selectedDay?.dayName ?: "this day"}"
+                                        } else {
+                                            "No timetable synced yet"
+                                        },
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
                                         color = colors.onSurface
                                     )
                                     Text(
-                                        text = "Enjoy your free day or catch up on coursework!",
+                                        text = if (hasSyncedTimetable) {
+                                            "Enjoy your free day or catch up on coursework!"
+                                        } else {
+                                            NO_TIMETABLE_NOTICE
+                                        },
                                         fontSize = 12.sp,
                                         color = colors.onSurfaceVariant
                                     )

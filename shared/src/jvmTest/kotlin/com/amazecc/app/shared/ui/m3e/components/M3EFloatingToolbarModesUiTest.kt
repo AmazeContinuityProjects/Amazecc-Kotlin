@@ -25,8 +25,8 @@ class M3EFloatingToolbarModesUiTest {
     private val fourDestinations = listOf(
         M3EDestination.HOME,
         M3EDestination.ATTENDANCE,
-        M3EDestination.TIMETABLE,
-        M3EDestination.ACADEMICS
+        M3EDestination.ACADEMICS,
+        M3EDestination.MORE
     )
 
     @Test
@@ -51,21 +51,21 @@ class M3EFloatingToolbarModesUiTest {
 
         // A11y contract: every destination is named even though three have no text.
         // substring = true survives Compose merging the visible Text into the
-        // clickable node's content description (e.g. "Timetable, Timetable").
+        // clickable node's content description (e.g. "More, More").
         fourDestinations.forEach {
             onNodeWithContentDescription(it.label, substring = true).assertExists()
         }
         // Selected label is shown; unselected label TEXT is absent.
         onNodeWithText(M3EDestination.HOME.label).assertExists()
-        listOf(M3EDestination.ATTENDANCE, M3EDestination.TIMETABLE, M3EDestination.ACADEMICS)
+        listOf(M3EDestination.ATTENDANCE, M3EDestination.ACADEMICS, M3EDestination.MORE)
             .forEach { onAllNodesWithText(it.label).assertCountEquals(0) }
 
         // Clicking a non-selected destination emits its id and moves the label.
-        onNodeWithContentDescription(M3EDestination.TIMETABLE.label, substring = true).performClick()
+        onNodeWithContentDescription(M3EDestination.MORE.label, substring = true).performClick()
         waitForIdle()
 
-        assertEquals(listOf(M3EDestination.TIMETABLE), clicked)
-        onNodeWithText(M3EDestination.TIMETABLE.label).assertExists()
+        assertEquals(listOf(M3EDestination.MORE), clicked)
+        onNodeWithText(M3EDestination.MORE.label).assertExists()
         onAllNodesWithText(M3EDestination.HOME.label).assertCountEquals(0)
     }
 

@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -162,7 +161,6 @@ fun M3EFloatingToolbar(
 private fun iconFor(destination: M3EDestination): ImageVector = when (destination) {
     M3EDestination.HOME -> Icons.Rounded.Home
     M3EDestination.ATTENDANCE -> Icons.Rounded.CheckCircle
-    M3EDestination.TIMETABLE -> Icons.Rounded.CalendarMonth
     M3EDestination.ACADEMICS -> Icons.Rounded.School
     M3EDestination.MORE -> Icons.Rounded.MoreHoriz
 }
@@ -347,7 +345,7 @@ private fun M3EFloatingToolbarDarkPreview() {
 private fun M3EFloatingToolbarRailPreview() {
     AmazeM3ETheme(isDark = false) {
         M3EFloatingToolbar(
-            currentDestination = M3EDestination.TIMETABLE,
+            currentDestination = M3EDestination.ACADEMICS,
             onDestinationSelected = {},
             useRail = true
         )
