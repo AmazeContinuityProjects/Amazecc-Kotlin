@@ -5,33 +5,19 @@ package com.amazecc.app.shared.pdf
  *
  * Two responsibilities live here:
  *
- *  1. **Byte-compatible replacements** for the three hand-written writers that used to live in
- *     `M3EExamScheduleExports`, `M3ECampusLegacyBridge` and `DocumentScannerPdf`. [buildTextPdf]
- *     reproduces the text writer layout exactly (object ids `1/2/3` + `4+2i`/`5+2i`, Helvetica +
- *     WinAnsi, uncompressed literal strings, 10-digit xref offsets), and [buildImagePdf]
- *     reproduces the scanner's fixed `1..6` layout with a raw `/DCTDecode` XObject. Both route
- *     through the same [PdfDocumentBuilder] serializer, so the byte offsets in the xref table are
- *     always real offsets into the emitted byte array (not `StringBuilder` character counts that
- *     happen to be correct only while every character is ASCII).
+ *  1. **Byte-compatible replacements** for the two hand-written writers that used to live in
+ *     `M3EExamScheduleExports` and `M3ECampusLegacyBridge`. [buildTextPdf] reproduces the text
+ *     writer layout exactly (object ids `1/2/3` + `4+2i`/`5+2i`, Helvetica + WinAnsi, uncompressed
+ *     literal strings, 10-digit xref offsets). It routes through the same [PdfDocumentBuilder]
+ *     serializer, so the byte offsets in the xref table are always real offsets into the emitted
+ *     byte array (not `StringBuilder` character counts that happen to be correct only while every
+ *     character is ASCII).
  *
  *  2. **Rich primitives** for the web-style reports: [wrapText], [getTextWidth], [fitOneLine],
- *     WinAnsi folding, aspect-fit image placement with a real clipping rectangle, multi-page scan
- *     assembly with a progress callback, and an mm-based page geometry shared with [PdfCanvas].
+ *     WinAnsi folding, and an mm-based page geometry shared with [PdfCanvas].
  *
- * Nothing here uses `java.*`, `android.*`, platform image decoders or stream compression. The JPEG
- * is embedded verbatim; only its SOF header is inspected to choose `/DeviceGray` vs `/DeviceRGB`.
+ * Nothing here uses `java.*`, `android.*`, platform image decoders or stream compression.
  */
-
-/** Top-left-origin crop in normalised image coordinates (all values 0f..1f). */
-data class PdfCrop(val left: Float, val top: Float, val right: Float, val bottom: Float) {
-    companion object {
-        /** The whole image: `(0, 0, 1, 1)`. */
-        val FULL: PdfCrop = PdfCrop(0f, 0f, 1f, 1f)
-    }
-
-    val width: Float get() = right - left
-    val height: Float get() = bottom - top
-}
 
 /** Knobs that distinguish the legacy text writers (10pt/13pt exam vs 11pt/15pt report). */
 data class PdfTextOptions(
@@ -40,16 +26,6 @@ data class PdfTextOptions(
     val startX: Int = 36,
     val startY: Int = 812,
     val linesPerPage: Int = 48
-)
-
-/** One scan page: a verbatim JPEG, its crop, and the title/note drawn above the image. */
-data class PdfImagePage(
-    val jpeg: ByteArray,
-    val crop: PdfCrop = PdfCrop.FULL,
-    val imageWidth: Int,
-    val imageHeight: Int,
-    val title: String,
-    val note: String = ""
 )
 
 /** SOF header summary used to size the image XObject and pick its colour space. */
@@ -68,8 +44,8 @@ object PdfEngine {
     internal fun ptToMm(pt: Double): Float = (pt / MM_TO_PT).toFloat()
 
     /**
-     * Stable 3-decimal number formatting shared by the writers and [PdfCanvas]. Truncation (not
-     * rounding) matches the original scanner writer, so image PDFs stay byte-identical.
+     * Stable 3-decimal number formatting shared by [PdfCanvas]. Truncation (not rounding) keeps
+     * emitted numbers deterministic.
      */
     internal fun pdfNum(value: Float): String {
         val rounded = (value * 1000).toLong() / 1000f
@@ -302,106 +278,6 @@ object PdfEngine {
                 contentIds[index],
                 "<< /Length ${stream.encodeToByteArray().size} >>\nstream\n$stream\nendstream"
             )
-        }
-        return doc.serialize()
-    }
-
-    // ---- Byte-compatible scanner writer / multi-page scans --------------------------------
-
-    /** Byte-compatible with the scanner writer: a single image page with fixed ids `1..6`. */
-    fun buildImagePdf(
-        jpeg: ByteArray,
-        crop: PdfCrop,
-        imageWidth: Int,
-        imageHeight: Int,
-        title: String,
-        note: String
-    ): ByteArray = buildImagePdfPages(
-        listOf(PdfImagePage(jpeg, crop, imageWidth, imageHeight, title, note))
-    )
-
-    /**
-     * Multi-page scan. Every page gets a real clipping rectangle (`q / cm / re W n / Do / Q`) that
-     * exposes only its crop of the actual JPEG, plus an optional title (14pt, y=814) and note
-     * (10pt, y=794). [onProgress] is invoked once per assembled page with `(1-based page, total)`,
-     * so a 3-page scan reports `(1,3)`, `(2,3)`, `(3,3)`.
-     *
-     * Object ids are `1` catalog, `2` pages, `3` font, then `4+3i` page, `5+3i` content and
-     * `6+3i` image. For a single page that is exactly the legacy `1..6` scanner layout.
-     */
-    fun buildImagePdfPages(
-        pages: List<PdfImagePage>,
-        onProgress: ((Int, Int) -> Unit)? = null
-    ): ByteArray {
-        val pageCount = pages.size
-        val doc = PdfDocumentBuilder()
-        doc.put(1, "<< /Type /Catalog /Pages 2 0 R >>")
-        doc.put(
-            2,
-            "<< /Type /Pages /Kids [${(0 until pageCount).joinToString(" ") { "${4 + it * 3} 0 R" }}] " +
-                "/Count $pageCount >>"
-        )
-        doc.put(3, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
-
-        pages.forEachIndexed { index, page ->
-            val pageId = 4 + index * 3
-            val contentId = pageId + 1
-            val imageId = pageId + 2
-            doc.put(
-                pageId,
-                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] " +
-                    "/Resources << /Font << /F1 3 0 R >> /XObject << /Im0 $imageId 0 R >> >> " +
-                    "/Contents $contentId 0 R >>"
-            )
-
-            val info = readJpegInfo(page.jpeg, page.imageWidth, page.imageHeight)
-            val pageW = PAGE_WIDTH_PT
-            val pageH = PAGE_HEIGHT_PT
-            val margin = 40f
-            val availW = pageW - 2 * margin
-            val availH = pageH - 2 * margin - 70f
-            val scale = minOf(availW / info.width, availH / info.height)
-            val dispW = info.width * scale
-            val dispH = info.height * scale
-            val clipW = page.crop.width * dispW
-            val clipH = page.crop.height * dispH
-            val dx = -page.crop.left * dispW
-            val dy = -(1f - page.crop.bottom) * dispH
-            val colorspace = if (info.components == 1) "/DeviceGray" else "/DeviceRGB"
-
-            val content = buildString {
-                append("q\n")
-                append("1 0 0 1 ${pdfNum(dx)} ${pdfNum(dy)} cm\n")
-                append("${pdfNum(margin)} ${pdfNum(margin)} ${pdfNum(clipW)} ${pdfNum(clipH)} re W n\n")
-                append("${pdfNum(dispW)} 0 0 ${pdfNum(dispH)} ${pdfNum(margin)} ${pdfNum(margin)} cm\n")
-                append("/Im0 Do\n")
-                append("Q\n")
-                append(
-                    "BT\n/F1 14 Tf\n${pageH - 28} Td\n" +
-                        "(${escapePdfLiteral(page.title.ifBlank { "AmazeCC Scan" })}) Tj\nET\n"
-                )
-                if (page.note.isNotBlank()) {
-                    append("BT\n/F1 10 Tf\n${pageH - 48} Td\n(${escapePdfLiteral(page.note)}) Tj\nET\n")
-                }
-            }
-            // Legacy byte compatibility: the stream body is `content + "\n"` but /Length is
-            // measured from the same string and the original writers declared one byte more
-            // than the literal body. Keep the +1 and the trailing newline exactly as-is; a
-            // "correction" here changes emitted bytes and breaks the pinned exam-PDF contract.
-            val contentBytes = (content + "\n").encodeToByteArray()
-            doc.put(
-                contentId,
-                "<< /Length ${contentBytes.size} >>\nstream\n$content\nendstream"
-            )
-            doc.putBinary(
-                imageId,
-                "<< /Type /XObject /Subtype /Image /Width ${info.width} /Height ${info.height} " +
-                    "/ColorSpace $colorspace /BitsPerComponent 8 /Filter /DCTDecode " +
-                    "/Length ${page.jpeg.size + 1} >>\nstream\n", // +1 is intentional legacy byte-compat; see content stream comment above
-                page.jpeg,
-                "\nendstream"
-            )
-            onProgress?.invoke(index + 1, pageCount)
         }
         return doc.serialize()
     }

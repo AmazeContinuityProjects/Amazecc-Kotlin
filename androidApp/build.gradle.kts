@@ -83,15 +83,6 @@ android {
         versionCode = verCode
         versionName = verName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        // D-174: the OpenCV AAR bundles native libs for every ABI (~117 MB unpacked). Shipping
-        // only arm64-v8a + armeabi-v7a cuts that down sharply. Trade-off: the APK will not install
-        // on other ABIs (including x86 emulators), and any native-library-dependent code — OpenCV
-        // fallback AND on-device OCR/inference — is unavailable there. Kotlin-only paths (UI,
-        // manual crop, share) are unaffected. Accept only if these two ABIs are the support target.
-        ndk {
-            abiFilters.add("arm64-v8a")
-            abiFilters.add("armeabi-v7a")
-        }
     }
 
     signingConfigs {
@@ -137,14 +128,6 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     debugImplementation(libs.compose.ui.tooling)
 
-    // D-167 — geotagged camera. One CameraX version for every artifact; camera-extensions is the
-    // supported OEM integration point (Night/Bokeh/Face retouch/HDR), not an unverified "codec" hack.
-    implementation(libs.androidx.camera.camera2)
-    implementation(libs.androidx.camera.lifecycle)
-    implementation(libs.androidx.camera.view)
-    implementation(libs.androidx.camera.extensions)
-    implementation(libs.play.services.location)
-    implementation(libs.androidx.exifinterface)
+    // androidx.core.content.FileProvider (declared in the manifest) is supplied by core-ktx.
     implementation(libs.androidx.core.ktx)
-    implementation(libs.kotlinx.coroutines.android)
 }

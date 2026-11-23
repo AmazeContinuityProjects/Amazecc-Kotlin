@@ -20,27 +20,6 @@ class PdfEngineTest {
         return sb.toString()
     }
 
-    /** SOI + SOF0 + EOI — enough for the header parser; no pixel decoding is attempted. */
-    private fun jpegFixture(width: Int, height: Int, components: Int): ByteArray {
-        val compBytes = ByteArray(components * 3) { i ->
-            when (i % 3) {
-                0 -> (i / 3 + 1).toByte() // component id
-                1 -> 0x11.toByte()        // sampling
-                else -> 0.toByte()        // quant table
-            }
-        }
-        val sofLength = 2 + 1 + 2 + 2 + 1 + compBytes.size
-        return byteArrayOf(
-            0xFF.toByte(), 0xD8.toByte(),                                  // SOI
-            0xFF.toByte(), 0xC0.toByte(),                                  // SOF0
-            (sofLength ushr 8).toByte(), (sofLength and 0xFF).toByte(),
-            0x08.toByte(),                                                 // precision
-            (height ushr 8).toByte(), (height and 0xFF).toByte(),
-            (width ushr 8).toByte(), (width and 0xFF).toByte(),
-            components.toByte()
-        ) + compBytes + byteArrayOf(0xFF.toByte(), 0xD9.toByte())          // EOI
-    }
-
     private fun assertValidPdf(pdf: ByteArray): String {
         val s = pdf.ascii()
         assertTrue(s.startsWith("%PDF-1.4\n"), "missing PDF 1.4 header")
@@ -197,79 +176,6 @@ class PdfEngineTest {
         val shrunk = PdfEngine.fitOneLine("A considerably longer report heading", 18.0, 12.0, 6.0)
         assertEquals(1, shrunk.size)
         assertTrue(PdfEngine.getTextWidth(shrunk[0], 6.0) <= 18.0 * (595.0 / 210.0) + 0.001)
-    }
-
-    // ---- JPEG inspection -------------------------------------------------------------------
-
-    @Test
-    fun jpeg_header_parser_reads_dimensions_and_components() {
-        val gray = jpegFixture(16, 16, 1)
-        assertTrue(PdfEngine.isJpeg(gray))
-        assertEquals(PdfJpegInfo(16, 16, 1), PdfEngine.readJpegInfo(gray, 8, 8))
-
-        val rgb = jpegFixture(32, 24, 3)
-        assertEquals(PdfJpegInfo(32, 24, 3), PdfEngine.readJpegInfo(rgb, 8, 8))
-
-        assertFalse(PdfEngine.isJpeg(byteArrayOf(1, 2, 3, 4)))
-        assertEquals(PdfJpegInfo(9, 7, 3), PdfEngine.readJpegInfo(byteArrayOf(1, 2, 3, 4), 9, 7))
-    }
-
-    // ---- Image writer / multi-page scans ---------------------------------------------------
-
-    @Test
-    fun image_pdf_has_fixed_layout_and_real_clip() {
-        val jpeg = jpegFixture(16, 16, 1)
-        val pdf = PdfEngine.buildImagePdf(jpeg, PdfCrop.FULL, 16, 16, "Scan", "camera roll")
-        val s = assertValidPdf(pdf)
-
-        assertEquals(1, pageCount(s))
-        assertTrue(s.contains("/DCTDecode"))
-        assertTrue(s.contains("/Im0 Do"))
-        assertTrue(s.contains("re W n"), "crop must be a real clipping rectangle")
-        assertTrue(s.contains("/DeviceGray"), "1-component JPEG -> DeviceGray")
-        assertTrue(s.contains("/Length ${jpeg.size + 1}"))
-        assertTrue(s.contains("(Scan) Tj"))
-        assertTrue(s.contains("(camera roll) Tj"))
-        assertTrue(s.contains("1 0 0 1 0 0 cm"), "FULL crop has no translation")
-        assertTrue(s.contains("trailer\n<< /Size 7 /Root 1 0 R >>\n"), "fixed 1..6 object layout")
-    }
-
-    @Test
-    fun image_pdf_applies_partial_crop_and_rgb_colour_space() {
-        val jpeg = jpegFixture(32, 32, 3)
-        val crop = PdfCrop(0.1f, 0.1f, 0.9f, 0.9f)
-        val pdf = PdfEngine.buildImagePdf(jpeg, crop, 32, 32, "Cropped", "")
-        val s = assertValidPdf(pdf)
-        assertTrue(s.contains("/DeviceRGB"))
-        assertTrue(s.contains("re W n"))
-        assertFalse(s.contains("1 0 0 1 0 0 cm"), "partial crop must translate the image")
-        assertFalse(s.contains("(note) Tj"), "blank note draws nothing")
-    }
-
-    @Test
-    fun multi_page_scan_reports_progress_and_builds_all_pages() {
-        val jpeg = jpegFixture(32, 32, 3)
-        val pages = (1..3).map { PdfImagePage(jpeg, PdfCrop.FULL, 32, 32, "Page $it", "") }
-        val progress = mutableListOf<Pair<Int, Int>>()
-        val pdf = PdfEngine.buildImagePdfPages(pages) { current, total -> progress += current to total }
-        val s = assertValidPdf(pdf)
-
-        assertEquals(listOf(1 to 3, 2 to 3, 3 to 3), progress)
-        assertEquals(3, pageCount(s))
-        assertEquals(3, Regex("/Im0 Do").findAll(s).count())
-        assertEquals(3, Regex("/DCTDecode").findAll(s).count())
-        assertTrue(s.contains("(Page 1) Tj"))
-        assertTrue(s.contains("(Page 3) Tj"))
-        assertTrue(s.contains("trailer\n<< /Size 13 /Root 1 0 R >>\n"), "3 + 3*3 objects + 1")
-    }
-
-    @Test
-    fun empty_scan_list_still_produces_a_valid_document() {
-        val progress = mutableListOf<Pair<Int, Int>>()
-        val pdf = PdfEngine.buildImagePdfPages(emptyList()) { c, t -> progress += c to t }
-        val s = assertValidPdf(pdf)
-        assertEquals(0, pageCount(s))
-        assertTrue(progress.isEmpty())
     }
 
     // ---- Canvas ---------------------------------------------------------------------------

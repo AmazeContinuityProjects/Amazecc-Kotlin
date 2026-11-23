@@ -58,9 +58,7 @@ val appLibraryItems: List<AppLibraryItem> = listOf(
     AppLibraryItem("Libraries", "Book search & digital library", Icons.AutoMirrored.Rounded.LibraryBooks, "Campus", targetScreen = Screen.LIBRARIES),
     AppLibraryItem("Hostel Hub", "Mess menu, laundry & gatepass", Icons.Rounded.Apartment, "Campus", type = "panel", panelTarget = LibraryPanel.HOSTEL, pinnableScreen = Screen.HOSTEL),
     AppLibraryItem("Transport", "Shuttle bus routes & mobility", Icons.Rounded.DirectionsBus, "Campus", targetScreen = Screen.TRANSPORT),
-    // FFCS-CAMPUS-01: campus utilities surfaced in both the More hub (Campus Life) and here.
-    AppLibraryItem("Document Scanner", "Scan, crop and save documents as PDF", Icons.Rounded.Crop, "Campus", targetScreen = Screen.DOCUMENT_SCANNER),
-    AppLibraryItem("Geotag Photos", "Camera photos stamped with their real GPS location", Icons.Rounded.PhotoCamera, "Campus", targetScreen = Screen.GEOTAG_PHOTO),
+    // FFCS-CAMPUS-01: campus utility surfaced in both the More hub (Campus Life) and here.
     AppLibraryItem("Friend Finder", "Find classmates in your registered classes", Icons.Rounded.Groups, "Campus", targetScreen = Screen.FRIEND_FINDER),
     AppLibraryItem("Mess Menu", "Daily mess menu & food schedule", Icons.Rounded.Restaurant, "Hostel", targetScreen = Screen.HOSTEL),
     AppLibraryItem("Laundry", "Laundry token & wash status", Icons.Rounded.LocalLaundryService, "Hostel", targetScreen = Screen.HOSTEL),
@@ -68,7 +66,6 @@ val appLibraryItems: List<AppLibraryItem> = listOf(
 
     // TOOLS & UTILITIES
     AppLibraryItem("Social Feed", "Anonymous campus discussion feed", Icons.Rounded.Public, "Tools", targetScreen = Screen.SOCIAL),
-    // FFCS-CAMPUS-01: Friend Finder and Geotag Photos moved to the Campus group above.
     AppLibraryItem("Event Hub", "Campus fests, hackathons & events", Icons.Rounded.Event, "Tools", targetScreen = Screen.EVENTS),
     AppLibraryItem("Club Hub", "Student clubs, chapters & teams", Icons.Rounded.Groups, "Tools", targetScreen = Screen.CLUB_HUB, onClickOverride = { AppState.openClubHub("Directory") }),
 

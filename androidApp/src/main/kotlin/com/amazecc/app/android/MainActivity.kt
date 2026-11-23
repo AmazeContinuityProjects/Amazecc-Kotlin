@@ -35,8 +35,8 @@ class MainActivity : ComponentActivity() {
             } catch (_: Exception) {}
         }
 
-        // D-167: `amazecc://geotag` (and any other amazecc deep link) arrives as intent.data.
-        // Hand the raw URI to the shared deep-link queue; `target_screen` above stays supported.
+        // D-167: any amazecc deep link arrives as intent.data. Hand the raw URI to the shared
+        // deep-link queue; `target_screen` above stays supported.
         intent?.data?.let { AppState.setPendingDeepLink(it.toString()) }
         
         setContent {

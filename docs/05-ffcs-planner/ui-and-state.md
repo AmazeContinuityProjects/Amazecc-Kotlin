@@ -361,11 +361,11 @@ flowchart LR
 
 ### Deep links and the target that nobody reads
 
-`AppState` has a full deep-link parser (`AppState.kt:1280-1361`): `amazecc://share?code=…`, `amazecc://tab?tab=…`, `amazecc://tab?open=…`, `amazecc://open?open=…`, `amazecc://geotag` and `amazecc://auth-callback/…`. `applyDeepLink` (`:1300-1328`) resolves `open=` to a screen via `screenFromTabParam` (`:1364-1385`).
+`AppState` has a full deep-link parser (`AppState.kt:1280-1361`): `amazecc://share?code=…`, `amazecc://tab?tab=…`, `amazecc://tab?open=…`, `amazecc://open?open=…` and `amazecc://auth-callback/…`. `applyDeepLink` (`:1300-1328`) resolves `open=` to a screen via `screenFromTabParam` (`:1364-1385`).
 
 Two honest facts about FFCS specifically:
 
-1. **`screenFromTabParam` has no FFCS entry.** Its map covers home, attendance, academics, tools, more, friend-finder, geotag and others, but returns `null` for `"ffcs"` (`AppState.kt:1384`). There is no `amazecc://tab?tab=ffcs` route into the planner today. The documented "deep-link path" is the in-app `openFfcsCourse` call, not a URI.
+1. **`screenFromTabParam` has no FFCS entry.** Its map covers home, attendance, academics, tools, more, friend-finder and others, but returns `null` for `"ffcs"` (`AppState.kt:1384`). There is no `amazecc://tab?tab=ffcs` route into the planner today. The documented "deep-link path" is the in-app `openFfcsCourse` call, not a URI.
 2. **`ffcsCourseTarget` is set but never read.** `openFfcsCourse` clears targets, writes the code and navigates (`AppState.kt:852-856`), and `clearTargets` resets it (`:817`) — but no screen or host collects `ffcsCourseTarget` (`:798-799`). A course chosen in the command palette opens the planner with a **generic course list**, not a preselected course. The `localSearchScreens` set includes `Screen.FFCS_PLANNER` (`AppState.kt:406-412`), so the header search icon bumps `localSearchTick` (`:418`), but only the **legacy** screen reads that tick (`FfcsPlannerScreen.kt:178-189`); the M3E screen has its own always-visible field and ignores it.
 
 ## Honest gotchas

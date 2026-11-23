@@ -67,11 +67,6 @@ enum class Screen { SPLASH,
     EVENTS, QBANK, SOCIAL,
     // D-164: server-backed Friend Finder discovery screen (distinct from SOCIAL).
     FRIEND_FINDER,
-    // D-173: geotag photo capture is a normal, nav-bar-visible screen (not a LIFO overlay).
-    GEOTAG_PHOTO,
-    // FFCS-CAMPUS-01: document scanner is a normal, nav-bar-visible screen route so it can be
-    // opened from the More hub and App Library like any other campus utility.
-    DOCUMENT_SCANNER,
     FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     // D-153: the academic report is a normal, nav-bar-visible screen (not a LIFO overlay).
     STUDENT_REPORT,
@@ -1096,24 +1091,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             setOf("friend-finder", "tools-social-friend-finder"),
             commandPalette = true
         ),
-        // D-173: geotag photo is app-library + command-palette discoverable and pinnable,
-        // but it is not a default pinned tab (the bottom bar stays owned by tabScreens).
-        Screen.GEOTAG_PHOTO to ScreenNavMeta(
-            Screen.GEOTAG_PHOTO,
-            setOf("geotag", "geotag-photo"),
-            pinnable = true,
-            appLibrary = true,
-            commandPalette = true
-        ),
-        // FFCS-CAMPUS-01: the scanner is discoverable from the More hub and App Library,
-        // but it is not a pinnable tab (the bottom bar stays owned by tabScreens).
-        Screen.DOCUMENT_SCANNER to ScreenNavMeta(
-            Screen.DOCUMENT_SCANNER,
-            setOf("document-scanner", "tools-document-scanner"),
-            pinnable = false,
-            appLibrary = true,
-            commandPalette = true
-        ),
         Screen.CABSHARE to ScreenNavMeta(Screen.CABSHARE, setOf("tools-cabshare", "cabshare"), pinnable = true, commandPalette = true),
         Screen.PROFILE to ScreenNavMeta(Screen.PROFILE, setOf("profile"), pinnable = true, pinId = "profile", pinLabel = "Profile", sidebar = true, appLibrary = true, commandPalette = true),
         Screen.MORE to ScreenNavMeta(Screen.MORE, setOf("more"), pinnable = true, pinId = "more", pinLabel = "More"),
@@ -1335,8 +1312,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
      * - `amazecc://tab?tab=<Screen>` — web parity: `/?tab=` — open a tab
      * - `amazecc://tab?open=<Screen>` / `amazecc://open?open=<Screen>` — web parity:
      *   `/?open=friend-finder` (D-164); [applyDeepLink] also accepts `open=` on any host.
-     * - `amazecc://geotag` — geotag photo capture (D-173; platform layer also maps the
-     *   `target_screen = "GEOTAG_PHOTO"` intent extra to this route).
      * - `amazecc://auth-callback/…` — OIDC callback (D-002, deferred)
      */
     fun parseDeepLink(uri: String): DeepLinkRoute? {
@@ -1352,9 +1327,6 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 query.substringAfter("tab=", "").ifBlank { query.substringAfter("open=", "") }
             )?.let { DeepLinkRoute.Tab(it) }
             "open" -> screenFromTabParam(query.substringAfter("open=", ""))?.let { DeepLinkRoute.Tab(it) }
-            // D-173: the platform layer delivers `amazecc://geotag` (and the GEOTAG_PHOTO
-            // intent extra) as a pending deep link; resolve it to the normal screen route.
-            "geotag" -> DeepLinkRoute.Tab(Screen.GEOTAG_PHOTO)
             "auth-callback" -> DeepLinkRoute.AuthCallback(uri.trim())
             else -> null
         }
@@ -1379,9 +1351,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             "about" -> Screen.ABOUT
             "qa-bank" -> Screen.QBANK
             "friend-finder" -> Screen.FRIEND_FINDER  // D-164: web /?open=friend-finder
-            // D-173: geotag route aliases (keeps GEOTAG_PHOTO's own enum name working too).
-            "geotag", "geotag-photo", "geotag_photo" -> Screen.GEOTAG_PHOTO
-            else -> null  // "community", "paper-scanner", "student-report", ... — no Kotlin screen
+            else -> null  // "community", "student-report", ... — no Kotlin screen
         }
     }
 

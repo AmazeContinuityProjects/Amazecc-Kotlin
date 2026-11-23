@@ -10,18 +10,7 @@ serialization = "1.6.3"
 androidx-activity = "1.9.0"
 androidx-appcompat = "1.6.1"
 datetime = "0.6.0"
-# D-166 — on-device document intelligence (Android only). Gemini Prompt API requires API 26+.
-mlkit-genai-prompt = "1.0.0-beta4"
-mlkit-text-recognition = "16.0.1"
-androidx-exifinterface = "1.4.2"
-# D-167 — geotagged camera: one stable CameraX version across all four artifacts.
-camerax = "1.4.0"
-play-services-location = "21.3.0"
-osmdroid = "6.1.20"
 androidx-core-ktx = "1.16.0"
-# D-174 — auto document scanning: ML Kit (primary) + OpenCV (fallback).
-play-services-mlkit-document-scanner = "16.0.0"
-opencv = "4.12.0"
 
 [libraries]
 kamel-image = { module = "media.kamel:kamel-image", version.ref = "kamel" }
@@ -30,7 +19,6 @@ multiplatform-settings-no-arg = { module = "com.russhwolf:multiplatform-settings
 kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
-kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "datetime" }
 compose-ui-backhandler = { module = "org.jetbrains.compose.ui:ui-backhandler", version.ref = "compose" }
@@ -49,28 +37,7 @@ ktor-serialization-kotlinx-json = { module = "io.ktor:ktor-serialization-kotlinx
 # Android X
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidx-activity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidx-appcompat" }
-androidx-exifinterface = { module = "androidx.exifinterface:exifinterface", version.ref = "androidx-exifinterface" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidx-core-ktx" }
-
-# D-167 — geotagged camera (CameraX + on-device OEM extensions + OSM map)
-androidx-camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
-androidx-camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
-androidx-camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
-androidx-camera-extensions = { module = "androidx.camera:camera-extensions", version.ref = "camerax" }
-play-services-location = { module = "com.google.android.gms:play-services-location", version.ref = "play-services-location" }
-osmdroid-android = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
-
-# ML Kit on-device document intelligence (D-166, Android only)
-mlkit-text-recognition = { module = "com.google.mlkit:text-recognition", version.ref = "mlkit-text-recognition" }
-mlkit-genai-prompt = { module = "com.google.mlkit:genai-prompt", version.ref = "mlkit-genai-prompt" }
-
-# D-174 — auto document scanning (Android only). The official OpenCV AAR (org.opencv:opencv)
-# exposes the real org.opencv Java API plus native libs for all ABIs; unlike the third-party
-# ai.eye2you mirror it is maintained by the OpenCV team and available on Maven Central.
-# Size trade-off: that AAR carries native libs for every ABI (~117 MB unpacked), so androidApp
-# applies ndk.abiFilters = [arm64-v8a, armeabi-v7a] and ships only those two.
-play-services-mlkit-document-scanner = { module = "com.google.android.gms:play-services-mlkit-document-scanner", version.ref = "play-services-mlkit-document-scanner" }
-opencv-android = { module = "org.opencv:opencv", version.ref = "opencv" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

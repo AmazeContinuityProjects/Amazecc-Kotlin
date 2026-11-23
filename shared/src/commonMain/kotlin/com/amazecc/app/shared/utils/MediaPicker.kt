@@ -3,7 +3,7 @@ package com.amazecc.app.shared.utils
 import androidx.compose.runtime.Composable
 
 /**
- * D-009 — real media capture / sharing seams for the document scanner.
+ * D-009 — real media capture / sharing seams for app features that need them.
  *
  * These are deliberately tiny `@Composable expect`s so every caller registers its
  * ActivityResult launcher in the *host* composition, never inside a `Dialog`'s

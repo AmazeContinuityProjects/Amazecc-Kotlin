@@ -13,7 +13,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Login
 import androidx.compose.material3.ButtonDefaults
@@ -54,7 +53,6 @@ import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3EColorPalette
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.ui.screens.m3e.M3EAmazeIdSignInScreen
-import com.amazecc.app.shared.ui.screens.m3e.M3EDocumentScannerHost
 import com.amazecc.app.shared.utils.ExportImportManager
 import com.amazecc.app.shared.utils.rememberFileImporter
 import com.amazecc.app.shared.utils.rememberFileSaver
@@ -70,8 +68,7 @@ import kotlinx.coroutines.withContext
  * legacy `SettingsScreen`. This hub is self-contained: it reads/writes
  * AppState, SettingsManager and SyncEngine directly, so M3E Settings only has
  * to render it once (see the wiring note in WEB_PARITY_DRIFT_REGISTER.md). It
- * also hosts the D-002 Amaze ID sign-in and D-009 document scanner so both are
- * reachable without touching the router.
+ * also hosts the D-002 Amaze ID sign-in so it is reachable without touching the router.
  *
  * The hub is now rendered *inside* a settings detail screen, so it deliberately
  * owns no cards and no nested scrolling: groups are [SettingsGroupHeader]s plus
@@ -84,7 +81,6 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
         val scope = rememberCoroutineScope()
         var status by remember { mutableStateOf<String?>(null) }
         var showAuth by remember { mutableStateOf(false) }
-        var showScanner by remember { mutableStateOf(false) }
         var showLogoutConfirm by remember { mutableStateOf(false) }
         var showClearConfirm by remember { mutableStateOf(false) }
 
@@ -426,13 +422,6 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                 icon = Icons.Rounded.Login,
                 onClick = { showAuth = true },
             )
-            SettingsActionRow(
-                title = "Document scanner",
-                subtitle = "Import → crop → edit → PDF",
-                icon = Icons.Rounded.CameraAlt,
-                onClick = { showScanner = true },
-            )
-
             SettingsGroupHeader("Danger Zone")
             SettingsActionRow(
                 title = "Clear local caches",
@@ -476,12 +465,6 @@ fun AdvancedSettingsHub(modifier: Modifier = Modifier) {
                     TextButton(onClick = { showAuth = false }, modifier = Modifier.align(Alignment.End)) { Text("Close") }
                 }
             }
-        }
-        // D-009 crash fix: the host owns all ActivityResult launchers and is composed OUTSIDE
-        // the sheet's Dialog — it renders the sheet itself. Only the stateless scanner screen
-        // lives inside the Dialog content, and no extra theme wrapper is applied.
-        if (showScanner) {
-            M3EDocumentScannerHost(onDismiss = { showScanner = false })
         }
         if (showLogoutConfirm) {
             M3EDismissibleSheet(

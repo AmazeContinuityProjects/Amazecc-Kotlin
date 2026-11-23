@@ -1657,9 +1657,7 @@ enum class M3ESubScreen(val label: String, val category: String, val description
     PAYMENTS("Fee Payments & Receipts", "Campus Life", "Online payments and historical receipts"),
     CIRCULARS("Official Circulars", "Campus Life", "Academic announcements & notifications"),
     DOCUMENTS("Documents & Transcripts", "Campus Life", "Bonafide, transcripts and certificates"),
-    // FFCS-CAMPUS-01: three real campus utilities promoted into the More hub's Campus Life group.
-    DOCUMENT_SCANNER("Document Scanner", "Campus Life", "Scan, crop and save documents as PDF"),
-    GEOTAG_PHOTO("Geotag Photos", "Campus Life", "Camera photos stamped with their real GPS location"),
+    // FFCS-CAMPUS-01: a real campus utility promoted into the More hub's Campus Life group.
     FRIEND_FINDER("Friend Finder", "Campus Life", "Find classmates in your registered classes"),
 
     EVENT_HUB("Event Hub", "Student Hub", "Campus fests, hackathons and tech symposiums"),
