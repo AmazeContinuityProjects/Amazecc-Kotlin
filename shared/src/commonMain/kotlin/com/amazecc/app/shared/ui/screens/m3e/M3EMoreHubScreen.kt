@@ -34,6 +34,8 @@ import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.Campaign
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Crop
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.DirectionsBus
@@ -439,6 +441,10 @@ private fun iconFor(screen: M3ESubScreen): ImageVector = when (screen) {
     M3ESubScreen.SETTINGS -> Icons.Rounded.Settings
     M3ESubScreen.ABOUT -> Icons.Rounded.Info
     M3ESubScreen.CHANGELOG -> Icons.Rounded.History
+    // FFCS-CAMPUS-01: campus-life utilities promoted into the More hub.
+    M3ESubScreen.DOCUMENT_SCANNER -> Icons.Rounded.Crop
+    M3ESubScreen.GEOTAG_PHOTO -> Icons.Rounded.PhotoCamera
+    M3ESubScreen.FRIEND_FINDER -> Icons.Rounded.Groups
 }
 
 /**

@@ -69,6 +69,9 @@ enum class Screen { SPLASH,
     FRIEND_FINDER,
     // D-173: geotag photo capture is a normal, nav-bar-visible screen (not a LIFO overlay).
     GEOTAG_PHOTO,
+    // FFCS-CAMPUS-01: document scanner is a normal, nav-bar-visible screen route so it can be
+    // opened from the More hub and App Library like any other campus utility.
+    DOCUMENT_SCANNER,
     FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     // D-153: the academic report is a normal, nav-bar-visible screen (not a LIFO overlay).
     STUDENT_REPORT,
@@ -1099,6 +1102,15 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             Screen.GEOTAG_PHOTO,
             setOf("geotag", "geotag-photo"),
             pinnable = true,
+            appLibrary = true,
+            commandPalette = true
+        ),
+        // FFCS-CAMPUS-01: the scanner is discoverable from the More hub and App Library,
+        // but it is not a pinnable tab (the bottom bar stays owned by tabScreens).
+        Screen.DOCUMENT_SCANNER to ScreenNavMeta(
+            Screen.DOCUMENT_SCANNER,
+            setOf("document-scanner", "tools-document-scanner"),
+            pinnable = false,
             appLibrary = true,
             commandPalette = true
         ),

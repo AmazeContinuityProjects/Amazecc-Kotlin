@@ -280,3 +280,4 @@ Format mirrors `SwarmBoard.boardMarkdown()`: `**[id | date] KIND â†’ to â�
 - Scanner now surfaces real on-device OCR/inference chips, preserves user-typed titles, and names exports from inferred facts; stale results are guarded by generation + byte identity.
 - Geotag photos: CameraX + OEM extensions, fused location, EXIF GPS, OpenStreetMap overlay card, FileProvider share, pinnable home shortcut and amazecc://geotag deep link. Device smoke test still required.
 - Document scanner now performs real edge detection, perspective straightening, deskew and cleanup: ML Kit Document Scanner primary, explicit OpenCV contour/warp fallback, then OCR/inference on the cleaned page. Device verification still required.
+- Campus features fix: Document Scanner, Geotag Photos and Friend Finder are now More hub (Campus Life) tiles and App Library Campus tiles; scanner also has a real normal Screen route. Verified gate_ffcs4 EXIT 0, Critic PASS.

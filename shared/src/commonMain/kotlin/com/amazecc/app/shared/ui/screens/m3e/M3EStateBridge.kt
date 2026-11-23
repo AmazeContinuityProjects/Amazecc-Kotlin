@@ -2705,6 +2705,10 @@ fun M3EMoreHubScreen(modifier: Modifier = Modifier) {
                             M3ESubScreen.SETTINGS -> AppState.navigateTo(Screen.SETTINGS)
                             M3ESubScreen.ABOUT -> AppState.navigateTo(Screen.ABOUT)
                             M3ESubScreen.CHANGELOG -> AppState.navigateTo(Screen.CHANGELOG)
+                            // FFCS-CAMPUS-01: campus-life tiles route to their real screen routes.
+                            M3ESubScreen.DOCUMENT_SCANNER -> AppState.navigateTo(Screen.DOCUMENT_SCANNER)
+                            M3ESubScreen.GEOTAG_PHOTO -> AppState.navigateTo(Screen.GEOTAG_PHOTO)
+                            M3ESubScreen.FRIEND_FINDER -> AppState.navigateTo(Screen.FRIEND_FINDER)
                         }
                     }
                     is M3EMoreHubAction.BackToHub -> {

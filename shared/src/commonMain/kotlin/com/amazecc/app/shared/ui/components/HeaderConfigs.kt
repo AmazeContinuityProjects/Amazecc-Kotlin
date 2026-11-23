@@ -269,7 +269,7 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showSyncButton = false,
         onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
-    // D-153/D-164: the report and friend finder supply their own M3E top app bars.
-    Screen.STUDENT_REPORT, Screen.FRIEND_FINDER, Screen.GEOTAG_PHOTO, Screen.SPLASH, Screen.LOGIN,
+    // D-153/D-164/FFCS-CAMPUS-01: the report, friend finder, geotag and scanner supply their own M3E top app bars.
+    Screen.STUDENT_REPORT, Screen.FRIEND_FINDER, Screen.GEOTAG_PHOTO, Screen.DOCUMENT_SCANNER, Screen.SPLASH, Screen.LOGIN,
         Screen.ONBOARDING, Screen.HOME, Screen.MORE -> null
 }

@@ -295,6 +295,10 @@ fun App() {
                                 // D-173: normal screen route — the host uses M3EPageShell chrome,
                                 // so the app bar and bottom nav stay mounted (no LIFO overlay).
                                 Screen.GEOTAG_PHOTO -> M3EGeotagPhotoHost()
+                                // FFCS-CAMPUS-01: normal screen route — M3EDocumentScannerHost owns
+                                // its ActivityResult launchers and must be composed outside any
+                                // Dialog, which this normal screen root satisfies.
+                                Screen.DOCUMENT_SCANNER -> M3EDocumentScannerHost(onDismiss = { AppState.navigateBack() })
                                 Screen.FFCS_PLANNER -> M3EFfcsPlannerScreenHost()
                                 Screen.FREE_CLASSROOMS -> M3EFreeClassroomsHost()
                                 Screen.CALENDAR -> M3ECalendarScreenHost()
