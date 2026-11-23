@@ -343,16 +343,16 @@ data class BusPlacement(
 
 @Serializable
 data class BusRoute(
-    val id: String,
-    val type: String,
-    val route: String,
+    val id: String = "",
+    val type: String = "",
+    val route: String = "",
     val boardingPoints: List<String> = emptyList(),
     /** Evening dispersal batches from the public /api/buses payload (e.g. 5PM / 6PM). */
     val placements: List<BusPlacement> = emptyList(),
-    val driverPhone: String,
-    val driverName: String,
-    val whatsappGroup: String,
-    val busLocation: String,
+    val driverPhone: String = "",
+    val driverName: String = "",
+    val whatsappGroup: String = "",
+    val busLocation: String = "",
     val supervisorName: String? = null,
     val supervisorPhone: String? = null,
     val driverInchargeName: String? = null,

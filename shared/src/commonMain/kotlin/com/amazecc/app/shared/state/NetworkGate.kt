@@ -287,7 +287,8 @@ internal fun inferModule(url: String): SyncModule? {
         "/api/payment" in u || "/api/wallet" in u || "/api/receipt" in u -> SyncModule.PAYMENTS
         "/api/library" in u || "/koha" in u -> SyncModule.LIBRARY
         "/api/transport" in u -> SyncModule.TRANSPORT
-        "/api/buses" in u -> SyncModule.BUSES
+        // D-192: the public cache route is /transport/buses; Hono/legacy use /api/buses.
+        "/api/buses" in u || "/transport/buses" in u -> SyncModule.BUSES
         "/api/lms-data" in u -> SyncModule.LMS
         "/api/events" in u -> SyncModule.EVENTS
         "/api/clubs" in u -> SyncModule.CLUBS
