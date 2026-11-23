@@ -8,12 +8,13 @@ import kotlinx.serialization.Serializable
  * The free-classroom finder derives this from the timetable data already in the
  * domain snapshot — there is no dedicated server endpoint or VTOP scraper for
  * room occupancy (see [com.amazecc.app.shared.api.AmazeClient.getFreeClassrooms]).
+ * There is deliberately no UNKNOWN state: when the source has not published a
+ * fact, the screen says so instead of inventing a status.
  */
 @Serializable
 enum class FreeClassroomStatus {
     FREE,
-    OCCUPIED,
-    UNKNOWN
+    OCCUPIED
 }
 
 /**
@@ -29,7 +30,8 @@ data class FreeClassroomRoom(
     val floor: Int = 0,
     val capacity: Int = 0,
     val isAirConditioned: Boolean = false,
-    val availabilityStatus: String = "unknown",
+    /** Blank until a real derivation publishes a status; never the literal word "unknown". */
+    val availabilityStatus: String = "",
     val isCurrentlyAvailable: Boolean = false,
     val nextOccupiedTime: String? = null
 )

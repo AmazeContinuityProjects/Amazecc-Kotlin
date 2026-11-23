@@ -837,6 +837,15 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         navigateTo(Screen.FREE_CLASSROOMS)
     }
 
+    /**
+     * D-191: call once the Free Classrooms host has applied [freeRoomTarget] to its search field.
+     * Without this the value is write-only, so a second deep link with a different room is ignored.
+     * The API name is unchanged; the host owns the one-shot consume.
+     */
+    fun consumeFreeRoomTarget() {
+        _freeRoomTarget.value = null
+    }
+
     fun openFaculty(schoolId: String, employeeId: String) {
         clearTargets()
         _facultySchoolTarget.value = schoolId
@@ -1665,7 +1674,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     }
                     if (SyncModule.BUSES in sweepModules) {
                         jobs += async {
-                            syncModule("Buses", { AmazeClient.getBuses() }, { it.error == null }, { it.error }) {
+                            syncModule(
+                                "Buses",
+                                { AmazeClient.getBuses() },
+                                { AmazeClient.busesSucceeded(it) },
+                                { AmazeClient.busesFailureMessage(it) }
+                            ) {
                                 AppDataStore.setBuses(it)
                             }
                         }
@@ -2011,8 +2025,8 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                             syncModule(
                                 name = "Buses",
                                 fetch = { AmazeClient.getBuses() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
+                                isSuccess = { AmazeClient.busesSucceeded(it) },
+                                errorMessage = { AmazeClient.busesFailureMessage(it) },
                                 update = {
                                     AppDataStore.setBuses(it)
                                 }
@@ -2714,8 +2728,8 @@ val results = supervisorScope {
                             syncModule(
                                 name = "Buses",
                                 fetch = { AmazeClient.getBuses() },
-                                isSuccess = { it.error == null },
-                                errorMessage = { it.error },
+                                isSuccess = { AmazeClient.busesSucceeded(it) },
+                                errorMessage = { AmazeClient.busesFailureMessage(it) },
                                 update = {
                                     AppDataStore.setBuses(it)
                                 }
@@ -2727,7 +2741,14 @@ val results = supervisorScope {
         }
     }
 
-    /** Offline derivation from the domain snapshot; see AmazeClient.getFreeClassrooms. */
+    /**
+     * Offline derivation from the domain snapshot; see AmazeClient.getFreeClassrooms.
+     *
+     * D-191 follow-up: never publish this feature's refresh feedback to the global [_error].
+     * A busy tap used to replace valid classroom results with a full-page "Couldn't load the
+     * timetable" and could then surface on unrelated screens. The host shows a local, auto-cleared
+     * inline note instead; a real derivation failure is reported by `freeClassroomsRes` itself.
+     */
     fun refreshFreeClassrooms() {
         if (_isLoading.value || SyncEngine.isAnyModuleLoading()) return
         launchSweep(setOf(SyncModule.FREE_CLASSROOMS)) {
@@ -2738,7 +2759,6 @@ val results = supervisorScope {
                 errorMessage = { it.error ?: it.message },
                 update = { AppDataStore.setFreeClassrooms(it) }
             )
-            _error.value = if (result.success) null else result.message
             updateSyncSummary(listOf(result))
         }
     }

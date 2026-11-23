@@ -1,6 +1,5 @@
 package com.amazecc.app.shared.domain
 
-import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.ui.m3e.components.StandardTimetablePeriods
 
 /**
@@ -60,7 +59,11 @@ data class FreeClassroomRoomRow(
     val faculty: String = ""
 )
 
-/** A block's real room counts, from the distinct venues present in the snapshot. */
+/**
+ * A block's room counts for the one filtered query that produced it: [total] is the number of
+ * rooms actually visible in this block (not the whole day's room universe), so the "N of M free"
+ * line can never contradict the chips beneath it.
+ */
 data class FreeClassroomBlockSummary(
     val block: String,
     val total: Int,
@@ -104,75 +107,54 @@ object FreeClassroomDeriver {
     /**
      * Derive occupancy for [dayKey] (MON..SAT) and [periodKey] from real snapshot rows.
      * An unknown period key falls back to the first period rather than blanking the page.
+     *
+     * The whole computation now runs through [FreeClassroomWeekIndex], so the block tiles and the
+     * room inspector can never disagree about who is sitting in a room in a period. This overload
+     * keeps the pure, snapshot-only API used by the JVM tests and any non-host caller.
      */
     fun derive(
         domain: DomainSnapshot,
         dayKey: String,
         periodKey: String
     ): FreeClassroomDerivationResult {
-        val day = FreeClassroomDay.fromKey(dayKey)
-        val period = periodOptions().firstOrNull { it.key == periodKey } ?: periodOptions().first()
-
-        // Canonical roster for the semester attendance reports from; used only to enrich lab
-        // detection when a flattened attendance row carries no useful type string.
-        val semesterId = Projections.reportingSemester(domain)?.id
-            ?: Projections.activeSemester(domain)?.id.orEmpty()
-        val mergedTypesByCode = Projections.mergedCourses(domain, semesterId)
-            .associate { Projections.canonicalCourseKey(it.code) to it.type }
-
-        // The flattened attendance rows are the FFCS report equivalent: slot + venue + type.
-        val rows = Projections.currentSemesterAttendance(domain)
-
-        val labVenues = rows.filter { row ->
-            isLabRow(row.courseType, row.slotName, mergedTypesByCode[row.courseCode].orEmpty())
-        }.mapNotNull { normalizeVenue(it.slotVenue) }.toSet()
-
-        val occupancy = linkedMapOf<String, Occupant>()
-        for (row in rows) {
-            val venue = normalizeVenue(row.slotVenue) ?: continue
-            val slotTokens = splitSlots(row.slotName)
-            val meetsInWindow = slotTokens.any { token ->
-                day.key in SlotMap.daysForSlot(token) &&
-                    SlotMap.resolveRange(day.key, token)?.let { (start, end) ->
-                        start < period.endMinute && end > period.startMinute
-                    } == true
-            }
-            if (meetsInWindow && !occupancy.containsKey(venue)) {
-                occupancy[venue] = Occupant(
-                    courseCode = row.courseCode,
-                    courseTitle = row.courseTitle,
-                    slot = row.slotName,
-                    faculty = row.faculty
-                )
-            }
-        }
-
-        val allRooms = rows.mapNotNull { row ->
-            normalizeVenue(row.slotVenue)?.let { venue ->
-                val occupant = occupancy[venue]
-                FreeClassroomRoomRow(
-                    code = venue,
-                    block = blockOf(venue),
-                    number = numberOf(venue),
-                    isLab = venue in labVenues,
-                    isFree = occupant == null,
-                    courseCode = occupant?.courseCode.orEmpty(),
-                    courseTitle = occupant?.courseTitle.orEmpty(),
-                    slot = occupant?.slot.orEmpty(),
-                    faculty = occupant?.faculty.orEmpty()
-                )
-            }
-        }.distinctBy { it.code }.sortedWith(compareBy({ it.block }, { it.code }))
+        val week = FreeClassroomWeekIndex.build(domain)
+        val dayAnswer = week.day(dayKey)
+        val answer = dayAnswer.period(periodKey)
+        val allRooms = dayAnswer.rooms.values.map { info ->
+            val occupant = answer.occupants[info.code]?.firstOrNull()
+            FreeClassroomRoomRow(
+                code = info.code,
+                block = info.block,
+                number = info.number,
+                isLab = info.isLab,
+                isFree = occupant == null,
+                courseCode = occupant?.courseCode.orEmpty(),
+                courseTitle = occupant?.title.orEmpty(),
+                slot = occupant?.slot.orEmpty(),
+                faculty = occupant?.faculty.orEmpty()
+            )
+        }.sortedWith(compareBy({ it.block }, { it.code }))
 
         val freeRooms = allRooms.filter { it.isFree }
         return FreeClassroomDerivationResult(
-            day = day,
-            period = period,
+            day = dayAnswer.day,
+            period = answer.period,
             allRooms = allRooms,
             freeRooms = freeRooms,
             occupiedRooms = allRooms.filter { !it.isFree },
             blocks = blockSummaries(allRooms)
         )
+    }
+
+    /** Lab venues from the snapshot's canonical roster; shared with the week index. */
+    internal fun labVenuesFor(domain: DomainSnapshot, rows: List<CourseAttendance>): Set<String> {
+        val semesterId = Projections.reportingSemester(domain)?.id
+            ?: Projections.activeSemester(domain)?.id.orEmpty()
+        val mergedTypesByCode = Projections.mergedCourses(domain, semesterId)
+            .associate { Projections.canonicalCourseKey(it.code) to it.type }
+        return rows.filter { row ->
+            isLabRow(row.courseType, row.slotName, mergedTypesByCode[row.courseCode].orEmpty())
+        }.mapNotNull { normalizeVenue(it.slotVenue) }.toSet()
     }
 
     /**
@@ -196,7 +178,7 @@ object FreeClassroomDeriver {
     // ── pure helpers ─────────────────────────────────────────────────────────
 
     /** Trim + uppercase; drop the placeholder venues VTOP uses for "no room". */
-    private fun normalizeVenue(raw: String?): String? {
+    internal fun normalizeVenue(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
         val value = raw.trim().uppercase()
         if (value.isEmpty()) return null
@@ -209,18 +191,18 @@ object FreeClassroomDeriver {
     private val PLACEHOLDER_VENUES = setOf("NIL", "N/A", "NA", "N.A.", "UNK-UNK", "-", "NULL", "TBA")
 
     /** Web parity: the block is the text before the first dash. */
-    private fun blockOf(code: String): String {
+    internal fun blockOf(code: String): String {
         val dash = code.indexOf('-')
         return if (dash >= 0) code.substring(0, dash).trim() else code
     }
 
-    private fun numberOf(code: String): String {
+    internal fun numberOf(code: String): String {
         val dash = code.indexOf('-')
         return if (dash >= 0) code.substring(dash + 1).trim() else code
     }
 
     /** VTOP's real vocabulary: "Lab Only" / "Embedded Lab", plus L-prefixed lab slot codes. */
-    private fun isLabRow(type: String, slot: String, mergedType: String): Boolean {
+    internal fun isLabRow(type: String, slot: String, mergedType: String): Boolean {
         if (type.contains("lab", ignoreCase = true)) return true
         if (mergedType.contains("lab", ignoreCase = true) && type.isBlank()) return true
         return splitSlots(slot).any { token ->
@@ -228,10 +210,4 @@ object FreeClassroomDeriver {
         }
     }
 
-    private data class Occupant(
-        val courseCode: String,
-        val courseTitle: String,
-        val slot: String,
-        val faculty: String
-    )
 }

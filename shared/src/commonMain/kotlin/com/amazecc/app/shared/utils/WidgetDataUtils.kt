@@ -1,13 +1,23 @@
 package com.amazecc.app.shared.utils
 
 import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.domain.DomainSnapshot
+import com.amazecc.app.shared.domain.FreeClassroomDeriver
+import com.amazecc.app.shared.domain.FreeClassroomKindFilter
+import com.amazecc.app.shared.domain.FreeClassroomQuery
+import com.amazecc.app.shared.domain.FreeClassroomWeekIndex
 import com.amazecc.app.shared.domain.Projections
+import com.amazecc.app.shared.domain.VtopIngestor
+import com.amazecc.app.shared.ffcs.FfcsStorage
+import com.amazecc.app.shared.ffcs.planner.ParsedCourse
 import com.amazecc.app.shared.model.AttendanceItem
+import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AcademicDerivers
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AcademicData
 import com.amazecc.app.shared.state.SemesterData
 import kotlinx.datetime.Clock
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -179,41 +189,77 @@ object WidgetDataUtils {
         }
     }
 
-    fun getFreeClassroomsSample(): List<AppWidgetRoomItem> {
-        AppDataStore.loadPersistedSnapshot()
-        val sem = currentSemesterData()
-        val courses = sem?.courses?.values ?: emptyList()
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-        val dayOfWeek = now.dayOfWeek.name.take(3).uppercase()
-
-        val occupiedRooms = mutableSetOf<String>()
-        val dayMap = SlotMap.map[dayOfWeek] ?: emptyMap()
-        val currentMins = now.hour * 60 + now.minute
-
-        courses.forEach { c ->
-            c.slots.forEach { s ->
-                val timeStr = dayMap[s]
-                if (timeStr != null) {
-                    val parts = timeStr.split("-")
-                    if (parts.size == 2) {
-                        val start = TimeMath.toMinutes(parts[0])
-                        val end = TimeMath.toMinutes(parts[1])
-                        if (currentMins in start..end && !c.venue.isNullOrBlank()) {
-                            occupiedRooms.add(c.venue.trim().uppercase())
-                        }
-                    }
-                }
-            }
-        }
-
-        val rooms = listOf(
-            AppWidgetRoomItem("SJT 101", "Theory", "SJT"),
-            AppWidgetRoomItem("SJT 204", "Theory", "SJT"),
-            AppWidgetRoomItem("AB1 102", "Lab", "AB1"),
-            AppWidgetRoomItem("TT 305", "Theory", "TT"),
-            AppWidgetRoomItem("SMV 201", "Theory", "SMV")
+    /**
+     * Rooms for the Free Classrooms widget, from the SAME canonical week index the screen uses.
+     *
+     * A widget process has no [com.amazecc.app.shared.state.AppState], so it reads the persisted
+     * snapshot that AppState.domain maps from and the same stored FFCS catalogue rows. The clock is
+     * resolved by [FreeClassroomWeekIndex.resolveNow] with its strict weekday/no-lunch rule: there
+     * is no weekend → Monday clamp and no cached "unknown" label. A blank [AppWidgetRoomItem.type]
+     * means "honest empty state" — the provider renders that row as a message, never as a room.
+     */
+    fun getFreeClassroomsNow(): List<AppWidgetRoomItem> {
+        val snapshot = AppDataStore.loadPersistedSnapshot()
+        // Same default as AppState.selectedSemester (a compile-time constant, so no AppState init).
+        val semesterId = SettingsManager.getString(
+            SettingsManager.KEY_SELECTED_SEMESTER,
+            com.amazecc.app.shared.state.AppState.DEFAULT_SEMESTER_ID
         )
+        val domain = VtopIngestor.fromLegacy(snapshot, semesterId)
+        // Same catalogue choice as the live host: the semester the report actually comes from.
+        val catalogueSemesterId = Projections.reportingSemester(domain)?.id
+        val catalogue = catalogueSemesterId?.let {
+            runCatching { FfcsStorage.Default.loadRawCourses(it) }.getOrDefault(emptyList())
+        }.orEmpty().ifEmpty {
+            runCatching { FfcsStorage.Default.loadRawCourses() }.getOrDefault(emptyList())
+        }
+        return freeRoomsNow(
+            domain,
+            catalogue,
+            Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        )
+    }
 
-        return rooms.filter { it.room.uppercase() !in occupiedRooms }.take(3)
+    /**
+     * Pure clock-injected core of [getFreeClassroomsNow], exercised by JVM tests.
+     * No real live period (weekend, lunch, outside class hours) means an honest empty state.
+     */
+    internal fun freeRoomsNow(
+        domain: DomainSnapshot,
+        catalogue: List<ParsedCourse>,
+        now: LocalDateTime
+    ): List<AppWidgetRoomItem> {
+        val nowInfo = FreeClassroomWeekIndex.resolveNow(
+            FreeClassroomDeriver.periodOptions(),
+            now
+        )
+        if (!nowInfo.isLive || nowInfo.day == null || nowInfo.period == null) {
+            return listOf(AppWidgetRoomItem("No live class period right now", "", ""))
+        }
+        val week = FreeClassroomWeekIndex.build(domain, catalogue)
+        if (week.day(nowInfo.day.key).rooms.isEmpty()) {
+            return listOf(AppWidgetRoomItem("No timetable data synced yet", "", ""))
+        }
+        val result = FreeClassroomWeekIndex.query(
+            week,
+            FreeClassroomQuery(
+                day = nowInfo.day,
+                periodKey = nowInfo.period.key,
+                kind = FreeClassroomKindFilter.ALL,
+                onlyFree = true
+            )
+        )
+        val free = result.blocks.flatMap { it.freeRooms }.take(3)
+        if (free.isEmpty()) {
+            return listOf(AppWidgetRoomItem("No free rooms right now", "", ""))
+        }
+        return free.map { room ->
+            AppWidgetRoomItem(
+                room = room.code,
+                // Only the real lab/theory fact from the week index; no capacity or AC guess.
+                type = if (room.isLab) "Lab" else "Classroom",
+                block = room.block
+            )
+        }
     }
 }

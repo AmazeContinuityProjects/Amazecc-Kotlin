@@ -74,8 +74,6 @@ import com.amazecc.app.shared.domain.overhaul.M3ECabShareState
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import com.amazecc.app.shared.domain.overhaul.M3ECourseGradeTerm
 import com.amazecc.app.shared.domain.overhaul.M3EClassTimelineItem
-import com.amazecc.app.shared.domain.overhaul.M3EClassroomBuilding
-import com.amazecc.app.shared.domain.overhaul.M3EClassroomSlot
 import com.amazecc.app.shared.domain.overhaul.M3EClubCategory
 import com.amazecc.app.shared.domain.overhaul.M3EClubHubAction
 import com.amazecc.app.shared.domain.overhaul.M3EClubHubState
@@ -101,8 +99,6 @@ import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyAction
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyMember
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyState
-import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsAction
-import com.amazecc.app.shared.domain.overhaul.M3EFreeClassroomsState
 import com.amazecc.app.shared.domain.overhaul.M3EGenderPreference
 import com.amazecc.app.shared.domain.overhaul.M3EGradeScreen
 import com.amazecc.app.shared.domain.overhaul.M3EGradesHistoryAction
@@ -2068,61 +2064,11 @@ fun M3ECabShareScreen(modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-fun M3EFreeClassroomsScreen(
-    onBack: () -> Unit = { if (!AppState.navigateBack()) AppState.navigateBackTo(Screen.ACADEMICS) },
-    modifier: Modifier = Modifier
-) {
-    val isDark = M3EStateBridge.isDarkThemeActive()
-    var searchQuery by remember { mutableStateOf("") }
-    var selectedBuilding by remember { mutableStateOf(M3EClassroomBuilding.ALL) }
-    var onlyAvailableNow by remember { mutableStateOf(true) }
-
-    val sampleRooms = remember {
-        listOf(
-            M3EClassroomSlot("SJT 101", "SJT", 1, 60, true, "Available", true, "11:00 AM"),
-            M3EClassroomSlot("SJT 204", "SJT", 2, 70, true, "Available", true, "01:30 PM"),
-            M3EClassroomSlot("TT 412", "TT", 4, 65, false, "Occupied", false, null),
-            M3EClassroomSlot("MB 202", "MB", 2, 80, true, "Available", true, "04:00 PM")
-        )
-    }
-
-    val filtered = remember(sampleRooms, searchQuery, selectedBuilding, onlyAvailableNow) {
-        sampleRooms.filter { room ->
-            val matchBuilding = selectedBuilding == M3EClassroomBuilding.ALL || room.buildingCode == selectedBuilding.code
-            val matchAvail = !onlyAvailableNow || room.isCurrentlyAvailable
-            val matchQuery = searchQuery.isBlank() || room.roomNumber.contains(searchQuery, ignoreCase = true)
-            matchBuilding && matchAvail && matchQuery
-        }
-    }
-
-    val state = M3EFreeClassroomsState(
-        classrooms = sampleRooms,
-        filteredClassrooms = filtered,
-        selectedBuilding = selectedBuilding,
-        onlyAvailableNow = onlyAvailableNow,
-        searchQuery = searchQuery,
-        isLoading = false
-    )
-
-    AmazeM3ETheme(isDark = isDark) {
-        M3EFreeClassroomsScreen(
-            state = state,
-            onAction = { action ->
-                when (action) {
-                    is M3EFreeClassroomsAction.SelectBuilding -> selectedBuilding = action.building
-                    is M3EFreeClassroomsAction.ToggleOnlyAvailable -> onlyAvailableNow = action.onlyAvailable
-                    is M3EFreeClassroomsAction.SearchQueryChanged -> searchQuery = action.query
-                    is M3EFreeClassroomsAction.Refresh -> {}
-                    // This legacy overload is not routed; the live host handles the richer
-                    // day/period/block actions. Keep the statement exhaustive without faking work.
-                    else -> Unit
-                }
-            },
-            modifier = modifier
-        )
-    }
-}
+/*
+ * D-191 follow-up: the unrouted legacy `M3EFreeClassroomsScreen(onBack=…)` host that fabricated
+ * four sample rooms (invented floors, capacity, AC and statuses) has been deleted. App.kt and
+ * MainTabPager.kt route only to M3EFreeClassroomsHost; no shipped screen uses sample data.
+ */
 
 @Composable
 fun M3EEventHubScreen(modifier: Modifier = Modifier) {

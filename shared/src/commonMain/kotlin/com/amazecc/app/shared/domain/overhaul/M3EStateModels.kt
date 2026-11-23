@@ -1095,6 +1095,10 @@ enum class M3EClassroomBuilding(val label: String, val code: String) {
     PRP("PRP Block", "PRP")
 }
 
+/**
+ * Legacy filter row used only by `M3EComputations.filterClassrooms`. No screen or host populates
+ * it after D-191: the free-classroom screen derives its single answer from the domain week index.
+ */
 data class M3EClassroomSlot(
     val roomNumber: String,
     val buildingCode: String,
@@ -1113,16 +1117,68 @@ enum class M3EFreeClassroomKindFilter(val label: String) {
     LAB("Labs")
 }
 
+/** One period-scoped occupant, formatted for the class-details overlay. */
+data class M3EFreeClassroomOccupant(
+    val key: String,
+    val courseCode: String,
+    val title: String,
+    val faculty: String,
+    val erpId: String?,
+    val classId: String?,
+    val slot: String,
+    val type: String,
+    val schoolId: String?,
+    val source: String
+)
+
+/** One row of the room inspector's week timeline. */
+data class M3EFreeClassroomTimelineEntry(
+    val periodKey: String,
+    val label: String,
+    val isFree: Boolean,
+    val isSelected: Boolean,
+    val occupants: List<M3EFreeClassroomOccupant>
+)
+
+/** Everything the second-level overlay shows, copied from a real period-scoped occupant. */
+data class M3EFreeClassroomClassDetails(
+    val occupantKey: String,
+    val courseCode: String,
+    val title: String,
+    val faculty: String,
+    val erpId: String?,
+    val classId: String?,
+    val slot: String,
+    val type: String,
+    val roomCode: String,
+    val dayLabel: String,
+    val periodLabel: String,
+    val schoolId: String?,
+    val source: String
+)
+
+/** Counts behind the three actionable insights; all derived from the unfiltered week answer. */
+data class M3EFreeClassroomInsights(
+    /** True only when the strict clock has a live day/period. The "Free now" card hides otherwise. */
+    val isLiveNow: Boolean = false,
+    val freeNowCount: Int = 0,
+    val bestPeriodKey: String? = null,
+    val bestPeriodLabel: String? = null,
+    val bestPeriodFree: Int = 0,
+    val runFreeCount: Int = 0
+)
+
 data class M3EFreeClassroomsState(
-    val classrooms: List<M3EClassroomSlot> = emptyList(),
-    val filteredClassrooms: List<M3EClassroomSlot> = emptyList(),
     val selectedBuilding: M3EClassroomBuilding = M3EClassroomBuilding.ALL,
     val onlyAvailableNow: Boolean = true,
     val searchQuery: String = "",
     val isLoading: Boolean = false,
+    /** Only for a genuine failure with no answer; renders the honest full-page error. */
     val errorMessage: String? = null,
-    // ── D-162: real day/period/block derivation (all defaults keep legacy constructors) ──
-    /** Day key from [FreeClassroomDay]: MON..SAT. */
+    /** Transient, FC-local feedback (busy refresh / failed refresh over valid data). Inline only. */
+    val inlineNotice: String? = null,
+    // ── D-191: one answer, one count ──────────────────────────────────────────────
+    /** Day key from [FreeClassroomDay]: MON..FRI. */
     val selectedDay: String = "MON",
     /** Key of [FreeClassroomPeriodOption] currently selected. */
     val selectedPeriodKey: String = "p1",
@@ -1131,18 +1187,37 @@ data class M3EFreeClassroomsState(
     val kindFilter: M3EFreeClassroomKindFilter = M3EFreeClassroomKindFilter.ALL,
     /** "All" or a real block name derived from snapshot venues. */
     val blockFilter: String = "All",
-    /** Real block counts for the selected day/period; the block is the unit, not the room. */
+    /** The ONE filtered result set. Its free rooms are the only result count on screen. */
     val blockSummaries: List<FreeClassroomBlockSummary> = emptyList(),
+    /** Every real block in the week answer, for the single Filters sheet. */
+    val availableBlocks: List<String> = emptyList(),
     /** Venue code of the room whose schedule inspector sheet is open. */
     val selectedRoom: String? = null,
-    /** Human label for the real current time, e.g. "Now · Mon 08:00". Blank when unavailable. */
-    val nowLabel: String = "",
-    /** Real current day/period targets for the "Now" affordance; blank hides it. */
+    /** The inspector sheet's own day; browsing a room's week never moves the list. */
+    val inspectDay: String = "MON",
+    /** Period → free/taken + period-scoped occupants for the inspected room. */
+    val roomTimeline: List<M3EFreeClassroomTimelineEntry> = emptyList(),
+    /** Second-level overlay content; null keeps the overlay closed. */
+    val selectedClass: M3EFreeClassroomClassDetails? = null,
+    /** Whether the single Filters sheet is open. */
+    val filtersOpen: Boolean = false,
+    /** Whether the answer is narrowed to rooms free across the whole RUN_LENGTH run. */
+    val runOnly: Boolean = false,
+    /** Blocks whose room chips are deliberately expanded (the "+N more" toggle). */
+    val expandedBlocks: Set<String> = emptySet(),
+    /** Room code whose copy affordance last succeeded, for transient check feedback. */
+    val copiedRoom: String? = null,
+    /** Real ticking wall clock text, e.g. `10:24 · Mon`. */
+    val clockLabel: String = "",
+    /** True only when the selected day/period is the live one from the strict clock. */
+    val isLive: Boolean = false,
+    /** Real current day/period targets for "Jump to now"; blank hides the affordance. */
     val nowDayKey: String = "",
-    val nowPeriodKey: String = ""
+    val nowPeriodKey: String = "",
+    val insights: M3EFreeClassroomInsights = M3EFreeClassroomInsights()
 ) {
-    /** All real rooms behind the current answer, flattened for the inspector lookup. */
-    val allDerivedRooms: List<FreeClassroomRoomRow> get() = blockSummaries.flatMap { it.rooms }
+    /** The only result count. Derived from the one result set; no second counter exists. */
+    val resultCount: Int get() = blockSummaries.sumOf { it.freeRooms.size }
 }
 
 sealed interface M3EFreeClassroomsAction {
@@ -1150,7 +1225,7 @@ sealed interface M3EFreeClassroomsAction {
     data class ToggleOnlyAvailable(val onlyAvailable: Boolean) : M3EFreeClassroomsAction
     data class SearchQueryChanged(val query: String) : M3EFreeClassroomsAction
     data object Refresh : M3EFreeClassroomsAction
-    /** Select a weekday (MON..SAT) for the "When" section. */
+    /** Select a weekday (MON..FRI) for the "When" section. */
     data class SelectDay(val day: String) : M3EFreeClassroomsAction
     /** Select a period window by its key. */
     data class SelectPeriod(val periodKey: String) : M3EFreeClassroomsAction
@@ -1162,6 +1237,27 @@ sealed interface M3EFreeClassroomsAction {
     data class SelectRoom(val roomCode: String) : M3EFreeClassroomsAction
     /** Close (or toggle) the room inspector sheet. */
     data object ToggleRoomInspector : M3EFreeClassroomsAction
+    /** Open/close the ONE Filters sheet. */
+    data class SetFiltersOpen(val open: Boolean) : M3EFreeClassroomsAction
+    /** Narrow the single answer to rooms free for the whole 3-period run. */
+    data class SetRunOnly(val enabled: Boolean) : M3EFreeClassroomsAction
+    /** Expand/collapse the hidden room chips of one block. */
+    data class ToggleBlockExpanded(val block: String) : M3EFreeClassroomsAction
+    /** Copy a real room code; the host owns the platform clipboard. */
+    data class CopyRoom(val roomCode: String) : M3EFreeClassroomsAction
+    /** Change only the inspector sheet's day. */
+    data class SelectInspectDay(val day: String) : M3EFreeClassroomsAction
+    /** Open the class-details overlay for one period-scoped occupant id. */
+    data class OpenClass(val occupantKey: String) : M3EFreeClassroomsAction
+    data object CloseClass : M3EFreeClassroomsAction
+    /** Real navigation to the faculty screen; emitted only when an ERP id exists. */
+    data class ViewFacultySchedule(val employeeId: String, val schoolId: String?) : M3EFreeClassroomsAction
+    /** One of the three actionable insights: `free_now`, `emptiest`, `run`. */
+    data class ApplyInsight(val id: String) : M3EFreeClassroomsAction
+    /** Apply the strict clock's real day/period and clear narrowing filters in one step. */
+    data object JumpToNow : M3EFreeClassroomsAction
+    /** Apply the inspector's day to the list without closing the inspector. */
+    data class ShowDayInList(val day: String) : M3EFreeClassroomsAction
 }
 
 // ==========================================

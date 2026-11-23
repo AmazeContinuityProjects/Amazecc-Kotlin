@@ -46,11 +46,13 @@ import com.amazecc.app.shared.utils.AnalyzeCalendar
 import com.amazecc.app.shared.utils.FacultyUtils
 import com.amazecc.app.shared.utils.UpdateConfig
 import com.amazecc.app.shared.utils.DemoData
+import com.amazecc.app.shared.domain.CourseAttendance
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.vtop.VtopGradeHistoryResult
 import com.amazecc.app.shared.config.SlotMap
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 
@@ -1177,10 +1179,32 @@ object AmazeClient {
             )
         }
 
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
-        val day = now.dayOfWeek.name.take(3).uppercase().let { if (it in SlotMap.days) it else "MON" }
+        val result = deriveFreeClassroomsForCourses(
+            courses,
+            Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        )
+        AppDataStore.setFreeClassrooms(result)
+        return result
+    }
+
+    /**
+     * Pure, clock-injected core of [getFreeClassrooms], shared with the JVM tests.
+     *
+     * D-191 follow-up: when the clock is outside a real teaching period (weekend, lunch, before the
+     * first class or after the last one) there is NO current period. A room is then not advertised
+     * as free: [FreeClassroomRoom.isCurrentlyAvailable] stays false and [FreeClassroomRoom.availabilityStatus]
+     * stays blank. The old `"unknown"` status plus `isCurrentlyAvailable = true` claimed a fact the
+     * derivation did not have and made every cached room look bookable at midnight.
+     */
+    internal fun deriveFreeClassroomsForCourses(
+        courses: List<CourseAttendance>,
+        now: LocalDateTime
+    ): FreeClassroomsRes {
+        // A weekend is not a teaching day. Never silently remap it to Monday: doing so
+        // fabricated a "free now" verdict from Monday's timetable on a Sunday.
+        val day = now.dayOfWeek.name.take(3).uppercase()
         val minutesNow = now.hour * 60 + now.minute
-        val slotsByDay = SlotMap.map[day].orEmpty()
+        val slotsByDay = if (day in SlotMap.days) SlotMap.map[day].orEmpty() else emptyMap<String, String>()
 
         // Periods are grouped by the *normalised* time range, so a theory slot and
         // the lab slot that overlaps it share one period and one slot set.
@@ -1197,7 +1221,12 @@ object AmazeClient {
             }
             .sortedBy { it.start }
 
-        val current = periods.firstOrNull { minutesNow >= it.start && minutesNow < it.end }
+        // Weekends have slot rows in the schema, but no live teaching day. There is no
+        // "free right now" verdict on a Saturday or Sunday, even inside those clock windows.
+        val isTeachingDay = day in SlotMap.weekdays
+        val current = if (isTeachingDay) {
+            periods.firstOrNull { minutesNow >= it.start && minutesNow < it.end }
+        } else null
 
         val rooms = LinkedHashMap<String, RoomDerivationState>()
         for (course in courses) {
@@ -1207,11 +1236,13 @@ object AmazeClient {
             val block = code.substringBefore("-", "").trim().ifEmpty { "Other" }
             val state = rooms.getOrPut(code) {
                 RoomDerivationState(
+                    // D-191: only the venue facts we actually have. Floor is not guessed from the
+                    // room code, and capacity/AC are not invented (they stay at the model defaults,
+                    // which are outside this derivation). Availability is derived below from real
+                    // slot occupancy, never defaulted here.
                     info = FreeClassroomRoom(
                         roomNumber = code,
-                        buildingCode = block,
-                        floor = code.substringAfter("-", "").firstOrNull { it.isDigit() }?.toString()?.toIntOrNull() ?: 0,
-                        availabilityStatus = "unknown"
+                        buildingCode = block
                     ),
                     occupied = mutableSetOf()
                 )
@@ -1223,13 +1254,14 @@ object AmazeClient {
         }
 
         val resultRooms = rooms.values.map { state ->
-            val available = current?.let { it.key !in state.occupied } ?: true
+            // No current period means no availability fact at all — never a free verdict.
+            val available = current?.let { it.key !in state.occupied } ?: false
             val next = periods.firstOrNull { p ->
                 (current == null || p.start >= current.end) && p.key in state.occupied
             }
             state.info.copy(
                 availabilityStatus = when {
-                    current == null -> "unknown"
+                    current == null -> ""
                     available -> "free"
                     else -> "occupied"
                 },
@@ -1238,14 +1270,12 @@ object AmazeClient {
             )
         }.sortedBy { it.roomNumber }
 
-        val result = FreeClassroomsRes(
+        return FreeClassroomsRes(
             success = true,
             rooms = resultRooms,
             day = day,
             period = current?.let { "${formatClock(it.start)} - ${formatClock(it.end)}" } ?: "Outside class hours"
         )
-        AppDataStore.setFreeClassrooms(result)
-        return result
     }
 
     private val NOT_A_ROOM = setOf("NIL", "N/A", "UNK-UNK", "-", "")
@@ -2312,13 +2342,55 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
         }
     }
 
+    // ── D-192: public bus routes (web cache contract) ──────────────────────────────
+
+    /** Same tolerance as [jsonConfig], exposed so the envelope is testable without HTTP. */
+    internal val busesJson = Json { ignoreUnknownKeys = true; coerceInputValues = true }
+
+    internal fun decodeBuses(text: String): BusesRes? =
+        runCatching { busesJson.decodeFromString<BusesRes>(text) }.getOrNull()
+
+    /**
+     * The cache/Hono envelope can fail with only `message` and no `error`. A null `error` is
+     * therefore NOT proof of a successful fetch.
+     */
+    internal fun busesSucceeded(res: BusesRes): Boolean =
+        res.success && res.error == null && res.message.isNullOrBlank()
+
+    internal fun busesFailureMessage(res: BusesRes): String =
+        res.error?.takeIf { it.isNotBlank() }
+            ?: res.message?.takeIf { it.isNotBlank() }
+            ?: "Bus routes unavailable"
+
+    /** Never overwrite a good cached route list with an empty `success = false` envelope. */
+    internal fun busesFailure(cached: BusesRes?, fetched: BusesRes?): BusesRes {
+        val buses = cached?.takeIf { it.success && it.buses.isNotEmpty() }?.buses.orEmpty()
+        val reason = if (fetched == null) "Bus routes could not be reached" else busesFailureMessage(fetched)
+        return BusesRes(
+            success = false,
+            buses = buses,
+            message = if (buses.isEmpty()) reason else "$reason (showing last cached routes)",
+        )
+    }
+
     suspend fun getBuses(): BusesRes {
-if (useMockData) return DemoData.get("buses", BusesRes.serializer()) ?: BusesRes()
-        // D-095: the API mounts no public GET /api/buses (only an admin POST). Serve the
-        // persisted cache; never fabricate routes or buses.
-        AppState.markServedFromCache("Buses")
-        return AppDataStore.buses.value
-            ?: BusesRes(success = false, message = "Bus list unavailable on the current API")
+        if (useMockData) return DemoData.get("buses", BusesRes.serializer()) ?: BusesRes()
+        val cached = AppDataStore.buses.value
+        // Web order: public cache GET first, then the unauthenticated Hono/legacy POST ops.
+        // `body` is only used by the POST fallbacks; it is deliberately empty (no credentials).
+        val fetched = mountedPost(
+            op = "buses",
+            auth = com.amazecc.app.shared.domain.ApiAuth.NONE,
+            body = { JsonObject(emptyMap()) },
+            decode = { decodeBuses(it) },
+            preferCache = true,
+        )
+        if (fetched != null && busesSucceeded(fetched)) return fetched
+        // Failure (or malformed payload): keep the last good list and report why. AppState's
+        // BUSES sync predicate will not persist this result, so the cache stays intact.
+        val failure = busesFailure(cached, fetched)
+        if (failure.buses.isNotEmpty()) AppState.markServedFromCache("Buses")
+        return failure
     }
 
     suspend fun submitTransportRegistration(request: TransportRegRequest): TransportRegSubmitRes {
@@ -3651,13 +3723,15 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
         auth: com.amazecc.app.shared.domain.ApiAuth,
         body: () -> JsonObject?,
         decode: (String) -> T?,
+        /** D-192: public cache routes must keep the web's cache-first order; other ops unchanged. */
+        preferCache: Boolean = false,
     ): T? {
         val target = com.amazecc.app.shared.domain.ApiTarget.fromName(SettingsManager.getApiTargetName())
         val candidates = com.amazecc.app.shared.domain.ApiMounts.resolve(
             op = op,
             auth = auth,
-            preferredId = target.mountId,
-            customBaseUrl = if (target == com.amazecc.app.shared.domain.ApiTarget.CUSTOM) baseUrl else null,
+            preferredId = if (preferCache) null else target.mountId,
+            customBaseUrl = if (!preferCache && target == com.amazecc.app.shared.domain.ApiTarget.CUSTOM) baseUrl else null,
         )
         for (candidate in candidates) {
             // No VTOP session means this auth strategy cannot be honoured by any mount.
