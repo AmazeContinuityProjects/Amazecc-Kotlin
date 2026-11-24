@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'version.properties'
+      - 'gradle.properties'
+      - '.github/workflows/release.yml'
 
 jobs:
   build-and-release:
