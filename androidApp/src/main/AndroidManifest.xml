@@ -24,7 +24,16 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.App.Starting" />
+            android:theme="@style/Theme.App.Starting">
+            <!-- D-193: amazecc:// deep links (share codes, tabs, friend-finder, ?add= invites).
+                 MAIN/LAUNCHER deliberately stays on the aliases below so there is one app icon. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="amazecc" />
+            </intent-filter>
+        </activity>
 
         <!-- Launcher aliases for the app-icon theme setting (D-059).
              Exactly one is enabled; PackageManager swaps them at runtime.

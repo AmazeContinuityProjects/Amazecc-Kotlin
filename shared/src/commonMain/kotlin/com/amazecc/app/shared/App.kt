@@ -218,7 +218,9 @@ fun App() {
                             modifier = Modifier.fillMaxSize(),
                             navigationVisible = currentScreen != Screen.LOGIN &&
                                 currentScreen != Screen.SPLASH &&
-                                currentScreen != Screen.ONBOARDING
+                                currentScreen != Screen.ONBOARDING &&
+                                // D-193 follow-up: this route is a modal Amaze ID sheet, not a tab.
+                                currentScreen != Screen.AMAZE_ID_SIGN_IN
                         ) {
                     // Global Spotlight Search Overlay
                     val commandPaletteOpen by AppState.commandPaletteOpen.collectAsState()
@@ -271,6 +273,9 @@ fun App() {
                                 // D-164: dedicated server-backed Friend Finder route (normal screen;
                                 // keeps the bottom nav mounted, no LIFO overlay).
                                 Screen.FRIEND_FINDER -> M3EFriendFinderHost()
+                                // D-193 follow-up: the real Amaze ID sign-in surface, hosted in a
+                                // dismissible sheet. Unlike LOGIN (VTOP form), this persists a token.
+                                Screen.AMAZE_ID_SIGN_IN -> M3EAmazeIdSignInHost()
                                 Screen.FFCS_PLANNER -> M3EFfcsPlannerScreenHost()
                                 Screen.FREE_CLASSROOMS -> M3EFreeClassroomsHost()
                                 Screen.CALENDAR -> M3ECalendarScreenHost()

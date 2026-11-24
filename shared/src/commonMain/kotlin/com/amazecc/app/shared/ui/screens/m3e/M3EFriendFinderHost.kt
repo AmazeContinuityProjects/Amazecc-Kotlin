@@ -11,19 +11,27 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.amazecc.app.shared.api.AmazeClient
 import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SocialApiError
 import com.amazecc.app.shared.state.SocialClient
 import com.amazecc.app.shared.state.SocialClient.FfcsMatchRequest
+import com.amazecc.app.shared.state.SocialSignInKind
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * D-164: server-backed Friend Finder host. Every rendered value is mapped from a real
+ * D-164 / D-193: server-backed Friend Finder host. Every rendered value is mapped from a real
  * [SocialClient] response; failures (including sign-in-required) are surfaced as honest text.
  * No cached demo state and no optimistic success — each mutation re-reads server truth.
+ *
+ * D-193 fixes the user-visible "not working": the network is gated on a local Amaze ID session
+ * check, the canonical social semester and the public roster are actually loaded, and a typed
+ * [SocialApiError] is mapped to the identity it names (Amaze ID vs VTOP) instead of one opaque
+ * "server did not return data" message.
  */
 @Composable
 fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
@@ -48,19 +56,85 @@ fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
     var isLoading by remember { mutableStateOf(true) }
     var isBusy by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var signInMessage by remember { mutableStateOf<String?>(null) }
     var needsSignIn by remember { mutableStateOf(false) }
     var semesterId by remember { mutableStateOf("") }
 
-    /** One fresh read of POST /api/social/ffcs-match op=get. */
+    /** Clear every server-derived field: a signed-out screen must never show stale data. */
+    fun resetToSignedOut() {
+        joined = false
+        discoverable = false
+        participants = 0
+        classes = emptyList()
+        friends = emptyList()
+        overlaps = emptyList()
+        self = FriendFinderPersonUi()
+        selfClassCount = 0
+        socialHandles = emptyList()
+        needsSignIn = true
+        signInMessage = "Sign in with Amaze ID to use Friend Finder."
+        errorMessage = "Friend Finder needs an Amaze ID session to read your classes."
+    }
+
+    /** One decision point for every typed failure: honest message + the right identity. */
+    fun showError(error: SocialApiError, actionLabel: String) {
+        // The 401 signal is one-shot: SocialClient.requireAmazeIdSession() short-circuits every
+        // call while it is latched. Consume it here so Retry actually re-attempts the read
+        // instead of throwing "session expired" locally forever.
+        AmazeClient.clearAmazeIdSignInRequired()
+        errorMessage = SocialClient.messageFor(error.code)
+            ?: error.detail
+            ?: error.message?.takeIf { it.isNotBlank() }
+            ?: "Friend Finder is unavailable (${error.code})."
+        when (error.requiredSignIn) {
+            SocialSignInKind.AMAZE_ID -> {
+                needsSignIn = true
+                signInMessage = "Sign in with Amaze ID to $actionLabel."
+            }
+            SocialSignInKind.VTOP -> {
+                needsSignIn = true
+                signInMessage = "Sign in again with VTOP and load this semester's attendance to $actionLabel."
+            }
+            SocialSignInKind.NONE -> {
+                needsSignIn = false
+                signInMessage = null
+            }
+        }
+    }
+
+    /** One fresh read: canonical semester, Classes Together state and the public roster. */
     suspend fun load() {
         isLoading = true
         errorMessage = null
+        signInMessage = null
         needsSignIn = false
-        val sem = semesterId.ifBlank { selectedSemester.trim().uppercase() }
+
+        // Gate before ANY network. A missing token is a local fact, not a server error.
+        if (!SocialClient.hasAmazeIdSession()) {
+            resetToSignedOut()
+            isLoading = false
+            return
+        }
+
         try {
+            val sem = withContext(Dispatchers.Default) {
+                try {
+                    SocialClient.canonicalSocialSemester(SocialClient.fetchCurrentSemester().semesterId)
+                } catch (e: SocialApiError) {
+                    // A sign-in error is authoritative and must not be masked by a fallback.
+                    if (e.requiredSignIn != SocialSignInKind.NONE) throw e
+                    SocialClient.canonicalSocialSemester(semesterId.ifBlank { selectedSemester })
+                }
+            }
             val match = withContext(Dispatchers.Default) {
                 SocialClient.ffcsMatchState(FfcsMatchRequest.Get(sem))
             }
+            // The public roster is a separate server read (no VTOP session needed). It enriches
+            // blank section fields and supplies students for sections that returned no people.
+            val roster = withContext(Dispatchers.Default) {
+                SocialClient.ffcsMatchClasses(sem)
+            }
+
             semesterId = match.semesterId.ifBlank { sem }
             joined = match.me.joined
             discoverable = match.me.discoverable
@@ -73,13 +147,15 @@ fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
             selfClassCount = match.me.classIds.size
             socialHandles = match.handles
 
+            val rosterByClassId = roster.classes.associateBy { it.classId }
             classes = match.sections.map { section ->
+                val rosterClass = rosterByClassId[section.classId]
                 FriendFinderClassUi(
                     classId = section.classId,
-                    courseCode = section.offering?.code.orEmpty(),
-                    courseTitle = section.offering?.title.orEmpty(),
-                    slot = section.offering?.slot.orEmpty(),
-                    faculty = section.offering?.faculty.orEmpty(),
+                    courseCode = section.offering?.code?.takeIf { it.isNotBlank() } ?: rosterClass?.courseCode.orEmpty(),
+                    courseTitle = section.offering?.title?.takeIf { it.isNotBlank() } ?: rosterClass?.courseTitle.orEmpty(),
+                    slot = section.offering?.slot?.takeIf { it.isNotBlank() } ?: rosterClass?.slot.orEmpty(),
+                    faculty = section.offering?.faculty?.takeIf { it.isNotBlank() } ?: rosterClass?.faculty.orEmpty(),
                     people = section.people.map { person ->
                         FriendFinderPersonUi(
                             handle = person.handle,
@@ -87,6 +163,15 @@ fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
                             regNo = person.regNo,
                             source = person.source
                         )
+                    }.ifEmpty {
+                        rosterClass?.students.orEmpty().map { student ->
+                            FriendFinderPersonUi(
+                                handle = student.handle,
+                                name = student.name,
+                                regNo = student.regNo,
+                                source = "registered"
+                            )
+                        }
                     }
                 )
             }
@@ -106,12 +191,7 @@ fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
             overlaps = mappedOverlaps
             friends = mappedOverlaps
         } catch (e: SocialApiError) {
-            needsSignIn = e.needsAmazeIdSignIn
-            errorMessage = if (e.needsAmazeIdSignIn) {
-                "Sign in with Amaze ID to use Friend Finder."
-            } else {
-                e.message?.takeIf { it.isNotBlank() } ?: "Friend Finder is unavailable (${e.code})."
-            }
+            showError(e, "open Friend Finder")
         } catch (e: Exception) {
             errorMessage = e.message?.takeIf { it.isNotBlank() } ?: "Friend Finder is unavailable."
         }
@@ -122,17 +202,18 @@ fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
     suspend fun run(request: FfcsMatchRequest, actionLabel: String) {
         isBusy = true
         errorMessage = null
+        signInMessage = null
         needsSignIn = false
+        if (!SocialClient.hasAmazeIdSession()) {
+            resetToSignedOut()
+            isBusy = false
+            return
+        }
         try {
             withContext(Dispatchers.Default) { SocialClient.ffcsMatchState(request) }
             load()
         } catch (e: SocialApiError) {
-            needsSignIn = e.needsAmazeIdSignIn
-            errorMessage = if (e.needsAmazeIdSignIn) {
-                "Sign in with Amaze ID to $actionLabel."
-            } else {
-                e.message?.takeIf { it.isNotBlank() } ?: "Could not $actionLabel (${e.code})."
-            }
+            showError(e, actionLabel)
         } catch (e: Exception) {
             errorMessage = e.message?.takeIf { it.isNotBlank() } ?: "Could not $actionLabel."
         }
@@ -181,6 +262,7 @@ fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
                 isProfileOpen = profileOpen,
                 isLoading = isLoading,
                 errorMessage = errorMessage,
+                signInMessage = signInMessage,
                 needsSignIn = needsSignIn,
                 isBusy = isBusy,
                 self = self,
@@ -191,6 +273,10 @@ fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
                 // Same semester the Get used; fall back to the app's selection before first load.
                 val opSemester = semesterId.ifBlank { selectedSemester.trim().uppercase() }
                 when (action) {
+                    // D-193 follow-up: FRIEND_FINDER is allowlisted, so prepare() parks this
+                    // screen and opens the real Amaze ID token sheet (Screen.AMAZE_ID_SIGN_IN)
+                    // instead of the VTOP-only LOGIN form. A saved token returns us here.
+                    M3EFriendFinderAction.SignIn -> SignInReturn.prepare(Screen.FRIEND_FINDER)
                     M3EFriendFinderAction.Refresh -> scope.launch { load() }
                     M3EFriendFinderAction.Publish -> {
                         scope.launch { run(FfcsMatchRequest.Publish(opSemester), "publish your classes") }
@@ -232,6 +318,7 @@ fun M3EFriendFinderHost(modifier: Modifier = Modifier) {
                     M3EFriendFinderAction.DismissError -> {
                         errorMessage = null
                         needsSignIn = false
+                        signInMessage = null
                     }
                 }
             }

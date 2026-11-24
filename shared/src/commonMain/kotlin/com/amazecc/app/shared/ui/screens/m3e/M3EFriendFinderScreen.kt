@@ -26,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -52,6 +53,8 @@ internal const val FRIEND_FINDER_FRIEND_SHEET_OVERLAY_ID = "ff-friend-sheet"
 internal const val FRIEND_FINDER_PROFILE_SHEET_OVERLAY_ID = "ff-profile-sheet"
 internal const val FRIEND_FINDER_SEARCH_TEST_TAG = "ff_search"
 internal const val FRIEND_FINDER_LIST_TEST_TAG = "ff_list"
+internal const val FRIEND_FINDER_SIGN_IN_TEST_TAG = "ff_sign_in"
+internal const val FRIEND_FINDER_RETRY_TEST_TAG = "ff_retry"
 
 /** Classes | Friends segmented switch, matching the web friend finder. */
 enum class FriendFinderGrouping(val label: String) {
@@ -110,6 +113,8 @@ data class M3EFriendFinderState(
     val isProfileOpen: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,
+    /** Identity-specific sign-in explanation from the host (Amaze ID vs VTOP); null keeps the Amaze fallback. */
+    val signInMessage: String? = null,
     val needsSignIn: Boolean = false,
     val isBusy: Boolean = false,
     val self: FriendFinderPersonUi = FriendFinderPersonUi(),
@@ -118,6 +123,8 @@ data class M3EFriendFinderState(
 )
 
 sealed interface M3EFriendFinderAction {
+    /** Real sign-in-and-return affordance; the host parks the return screen and opens login. */
+    data object SignIn : M3EFriendFinderAction
     data object Refresh : M3EFriendFinderAction
     data object Publish : M3EFriendFinderAction
     data object Leave : M3EFriendFinderAction
@@ -248,6 +255,9 @@ fun M3EFriendFinderScreen(
                         }
                         FriendFinderGrouping.FRIENDS -> {
                             item(key = "ff_search") { SearchField(state, onAction) }
+                            // Honest server rule: overlaps are returned only for >= 2 shared classes
+                            // or identical timetables, so one shared class alone never shows a match.
+                            item(key = "ff_match_rule") { MatchRuleNote() }
                             item(key = "ff_friends_header") {
                                 SectionHeader("Friends with common classes", visibleFriends.size)
                             }
@@ -497,9 +507,8 @@ private fun ErrorBanner(state: M3EFriendFinderState, onAction: (M3EFriendFinderA
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
             .background(colors.errorContainer)
-            .clickableA11y(onClickLabel = "Dismiss error", onClick = { onAction(M3EFriendFinderAction.DismissError) })
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(
             text = state.errorMessage.orEmpty(),
@@ -508,11 +517,32 @@ private fun ErrorBanner(state: M3EFriendFinderState, onAction: (M3EFriendFinderA
             fontSize = 13.sp
         )
         if (state.needsSignIn) {
+            // The host supplies the identity-specific message (Amaze ID vs VTOP).
             Text(
-                text = "Sign in with Amaze ID to use Friend Finder.",
+                text = state.signInMessage ?: "Sign in with Amaze ID to use Friend Finder.",
                 color = colors.onErrorContainer,
                 fontSize = 12.sp
             )
+        }
+        // At most two labelled buttons per row: retry, then sign-in when required.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TextButton(
+                onClick = { onAction(M3EFriendFinderAction.Refresh) },
+                modifier = Modifier.testTag(FRIEND_FINDER_RETRY_TEST_TAG)
+            ) {
+                Text("Retry", color = colors.onErrorContainer)
+            }
+            if (state.needsSignIn) {
+                TextButton(
+                    onClick = { onAction(M3EFriendFinderAction.SignIn) },
+                    modifier = Modifier.testTag(FRIEND_FINDER_SIGN_IN_TEST_TAG)
+                ) {
+                    Text("Sign in", color = colors.onErrorContainer)
+                }
+            }
+        }
+        TextButton(onClick = { onAction(M3EFriendFinderAction.DismissError) }) {
+            Text("Dismiss", color = colors.onErrorContainer)
         }
     }
 }
@@ -549,29 +579,51 @@ private fun SignedOutLanding(state: M3EFriendFinderState, onAction: (M3EFriendFi
         )
         Text(
             text = if (state.needsSignIn) {
-                "Sign in with Amaze ID to use Friend Finder."
+                // Host supplies the identity-specific copy; the literal keeps legacy callers honest.
+                state.signInMessage ?: "Sign in with Amaze ID to use Friend Finder."
             } else {
                 "Publishing uses the timetable you registered in VTOP. Nothing is shared until you join."
             },
             color = colors.onSurfaceVariant,
             fontSize = 12.sp
         )
-        Text(
-            text = "Publish registered classes",
-            color = colors.onPrimary,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(18.dp))
-                .background(colors.primary)
-                .clickableA11y(
-                    onClickLabel = "Publish registered classes",
-                    enabled = !state.isBusy && !state.needsSignIn,
-                    onClick = { onAction(M3EFriendFinderAction.Publish) }
-                )
-                .padding(14.dp)
-        )
+        if (state.needsSignIn) {
+            // A real sign-in affordance, not a dead control: publishing is hidden until signed in.
+            Text(
+                text = "Sign in to continue",
+                color = colors.onPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(FRIEND_FINDER_SIGN_IN_TEST_TAG)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(colors.primary)
+                    .clickableA11y(
+                        onClickLabel = "Sign in",
+                        enabled = !state.isBusy,
+                        onClick = { onAction(M3EFriendFinderAction.SignIn) }
+                    )
+                    .padding(14.dp)
+            )
+        } else {
+            Text(
+                text = "Publish registered classes",
+                color = colors.onPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(colors.primary)
+                    .clickableA11y(
+                        onClickLabel = "Publish registered classes",
+                        enabled = !state.isBusy,
+                        onClick = { onAction(M3EFriendFinderAction.Publish) }
+                    )
+                    .padding(14.dp)
+            )
+        }
     }
 }
 
@@ -615,6 +667,17 @@ private fun HiddenBanner(state: M3EFriendFinderState, onAction: (M3EFriendFinder
                 .padding(14.dp)
         )
     }
+}
+
+@Composable
+private fun MatchRuleNote() {
+    val colors = M3ETheme.colors
+    Text(
+        text = "Matches need at least two classes in common or identical timetables. Sharing just one class won't show up here.",
+        color = colors.onSurfaceVariant,
+        fontSize = 12.sp,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
+    )
 }
 
 @Composable

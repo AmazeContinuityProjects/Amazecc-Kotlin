@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.state.SocialSignInKind
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
@@ -129,6 +130,8 @@ data class M3ESocialState(
     val identityLabel: String = "",
     val serverError: String? = null,
     val needsSignIn: Boolean = false,
+    /** Which identity the sign-in affordance must refresh (D-193). */
+    val signInKind: SocialSignInKind = SocialSignInKind.NONE,
     val isServerLoading: Boolean = false,
     val peers: List<M3ESocialPeerUi> = emptyList(),
     val serverClasses: List<M3ESocialClassUi> = emptyList(),
@@ -179,6 +182,8 @@ sealed interface M3ESocialAction {
     // Server-backed social protocol.
     data object RefreshServer : M3ESocialAction
     data object SignIn : M3ESocialAction
+    /** Fresh VTOP login + attendance load; distinct from the Amaze ID sign-in above. */
+    data object SignInVtop : M3ESocialAction
     data object CopyHandle : M3ESocialAction
     data object CopyInviteLink : M3ESocialAction
     data object SaveQr : M3ESocialAction
@@ -267,8 +272,18 @@ fun M3ESocialScreen(
                                     Text("Retry", color = colors.primary)
                                 }
                                 if (state.needsSignIn) {
-                                    TextButton(onClick = { onAction(M3ESocialAction.SignIn) }) {
-                                        Text("Sign in with Amaze ID", color = colors.primary)
+                                    val isVtop = state.signInKind == SocialSignInKind.VTOP
+                                    TextButton(
+                                        onClick = {
+                                            onAction(
+                                                if (isVtop) M3ESocialAction.SignInVtop else M3ESocialAction.SignIn
+                                            )
+                                        }
+                                    ) {
+                                        Text(
+                                            if (isVtop) "Sign in with VTOP" else "Sign in with Amaze ID",
+                                            color = colors.primary
+                                        )
                                     }
                                 }
                             }
@@ -352,12 +367,28 @@ fun M3ESocialScreen(
                                     }
                                 } else {
                                     Text(
-                                        if (state.needsSignIn) "Sign in with Amaze ID to get a handle."
-                                        else "No handle yet. Sync Social to publish your week and claim one.",
+                                        when {
+                                            !state.needsSignIn -> "No handle yet. Sync Social to publish your week and claim one."
+                                            state.signInKind == SocialSignInKind.VTOP ->
+                                                "Sign in again with VTOP and load this semester's attendance to get a handle."
+                                            else -> "Sign in with Amaze ID to get a handle."
+                                        },
                                         fontSize = 13.sp, color = colors.onSurfaceVariant
                                     )
                                     if (state.needsSignIn) {
-                                        TextButton(onClick = { onAction(M3ESocialAction.SignIn) }) { Text("Sign in", color = colors.primary) }
+                                        val isVtop = state.signInKind == SocialSignInKind.VTOP
+                                        TextButton(
+                                            onClick = {
+                                                onAction(
+                                                    if (isVtop) M3ESocialAction.SignInVtop else M3ESocialAction.SignIn
+                                                )
+                                            }
+                                        ) {
+                                            Text(
+                                                if (isVtop) "Sign in with VTOP" else "Sign in",
+                                                color = colors.primary
+                                            )
+                                        }
                                     }
                                 }
                             }

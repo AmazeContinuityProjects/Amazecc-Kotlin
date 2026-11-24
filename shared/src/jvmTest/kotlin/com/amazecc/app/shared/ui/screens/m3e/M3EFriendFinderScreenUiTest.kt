@@ -219,4 +219,98 @@ class M3EFriendFinderScreenUiTest {
         onNodeWithText("Reading your Classes Together state from the server.").assertExists()
         onNodeWithText("Ada Lovelace").assertDoesNotExist()
     }
+
+    // -- D-193: sign-in, retry and match-rule honesty ------------------------------------
+
+    @Test
+    fun signInButtonIsRealAndEmitsSignIn() = runComposeUiTest {
+        val actions = mutableListOf<M3EFriendFinderAction>()
+        setContent {
+            AmazeM3ETheme {
+                M3EFriendFinderScreen(
+                    state = sampleState().copy(
+                        joined = false,
+                        discoverable = false,
+                        isLoading = false,
+                        needsSignIn = true,
+                        signInMessage = "You're signed out. Sign in with Amaze ID to load your Classes Together state.",
+                        errorMessage = "Friend Finder needs an Amaze ID session to read your classes."
+                    ),
+                    onAction = { actions.add(it) }
+                )
+            }
+        }
+
+        onNodeWithTag(FRIEND_FINDER_SIGN_IN_TEST_TAG).assertExists().performClick()
+        assertTrue(actions.contains(M3EFriendFinderAction.SignIn))
+        // A dead "Publish" control is hidden while signed in is required.
+        onNodeWithContentDescription("Publish registered classes").assertDoesNotExist()
+    }
+
+    private fun signInState(message: String) = sampleState().copy(
+        joined = false,
+        discoverable = false,
+        isLoading = false,
+        needsSignIn = true,
+        signInMessage = message,
+        errorMessage = "Friend Finder is unavailable right now."
+    )
+
+    @Test
+    fun amazeIdSignInMessageIsRenderedVerbatim() = runComposeUiTest {
+        val amazeCopy = "Sign in with Amaze ID to open Friend Finder."
+        setContent {
+            AmazeM3ETheme {
+                M3EFriendFinderScreen(state = signInState(amazeCopy), onAction = {})
+            }
+        }
+        onNodeWithText(amazeCopy).assertExists()
+        onNodeWithText("Sign in again with VTOP and load this semester's attendance to open Friend Finder.")
+            .assertDoesNotExist()
+    }
+
+    @Test
+    fun vtopSignInMessageIsRenderedVerbatim() = runComposeUiTest {
+        val vtopCopy = "Sign in again with VTOP and load this semester's attendance to open Friend Finder."
+        setContent {
+            AmazeM3ETheme {
+                M3EFriendFinderScreen(state = signInState(vtopCopy), onAction = {})
+            }
+        }
+        onNodeWithText(vtopCopy).assertExists()
+        onNodeWithText("Sign in with Amaze ID to open Friend Finder.").assertDoesNotExist()
+    }
+
+    @Test
+    fun errorCardOffersARealRetry() = runComposeUiTest {
+        val actions = mutableListOf<M3EFriendFinderAction>()
+        setContent {
+            AmazeM3ETheme {
+                M3EFriendFinderScreen(
+                    state = sampleState().copy(errorMessage = "The server is unreachable right now."),
+                    onAction = { actions.add(it) }
+                )
+            }
+        }
+
+        onNodeWithText("The server is unreachable right now.").assertExists()
+        onNodeWithTag(FRIEND_FINDER_RETRY_TEST_TAG).assertExists().performClick()
+        assertTrue(actions.contains(M3EFriendFinderAction.Refresh))
+    }
+
+    @Test
+    fun friendsTabExplainsWhyOneSharedClassIsNotAMatch() = runComposeUiTest {
+        setContent {
+            AmazeM3ETheme {
+                M3EFriendFinderScreen(
+                    state = sampleState().copy(grouping = FriendFinderGrouping.FRIENDS),
+                    onAction = {}
+                )
+            }
+        }
+
+        onNodeWithText(
+            "Matches need at least two classes in common or identical timetables. Sharing just one class won't show up here."
+        ).assertExists()
+    }
 }

@@ -269,7 +269,8 @@ fun headerConfigFor(screen: Screen): HeaderConfig? = when (screen) {
         showSyncButton = false,
         onBackOverride = { if (!AppState.navigateBack()) AppState.navigateTo(Screen.MORE) }
     )
-    // D-153/D-164: the report and friend finder supply their own M3E top app bars.
-    Screen.STUDENT_REPORT, Screen.FRIEND_FINDER, Screen.SPLASH, Screen.LOGIN,
+    // D-153/D-164/D-193: the report, friend finder and Amaze ID sheet supply their own
+    // M3E chrome (the sign-in route hosts its own dismissible sheet title).
+    Screen.STUDENT_REPORT, Screen.FRIEND_FINDER, Screen.AMAZE_ID_SIGN_IN, Screen.SPLASH, Screen.LOGIN,
         Screen.ONBOARDING, Screen.HOME, Screen.MORE -> null
 }

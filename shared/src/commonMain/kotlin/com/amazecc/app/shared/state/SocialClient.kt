@@ -2,6 +2,7 @@ package com.amazecc.app.shared.state
 
 import androidx.compose.runtime.Immutable
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.repository.SessionManager
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.SerialDescriptor
@@ -19,35 +20,181 @@ import kotlinx.serialization.json.decodeFromJsonElement
  * Typed client for the server-backed social protocol (D-006/D-013) --- the Kotlin port of
  * `../AmazeCC/src/lib/social/client.ts` against the Hono routes
  * `../amazecc-api-hono/src/routes/services/social-routes`, mounted at `/api/social`
- * (see `AmazeClient.postAuthorized`, the single HTTP client).
+ * (see `AmazeClient.socialRequest`, the D-193 social transport).
  *
  * Like the web client this deliberately does NOT cache: every call is a fresh read of
  * server truth, so "the pair was not found" and "server down" arrive as distinct
- * [SocialApiError] codes. Unlike the web client it does NOT swallow errors ---
- * `AmazeClient` returns `null` for a non-OK status, so the machine-readable error
- * envelope is lost; [SocialClient] translates it back here.
+ * [SocialApiError] codes. The transport keeps the HTTP status and raw body for non-2xx
+ * responses, so the machine-readable `{ success: false, error, detail }` envelope is
+ * mapped here rather than collapsing into "no data".
  */
 object SocialClient {
+    /** The only semester the friend finder is open for (web `UPCOMING_FFCS_SEMESTER`). */
+    const val SOCIAL_SEMESTER_ID = "CH20262705"
+
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
     }
 
+    /** Codes only a fresh VTOP sign-in can fix (web `SIGN_IN_CODES`). */
+    private val vtopSignInCodes = setOf(
+        "signin_required", "missing_credentials", "vtop_session_expired",
+        "vtop_identity_unresolved", "vtop_session_required"
+    )
+
+    /** Codes only a fresh Amaze ID sign-in can fix (web `AMAZE_ID_SIGN_IN_CODES`). */
+    private val amazeIdSignInCodes = setOf("amazeid_signin_required", "amazeid_session_expired")
+
+    /** An Amaze ID can read existing enrollments; a fresh publish may need VTOP credentials. */
+    private val vtopRetryCodes = setOf("vtop_session_required", "profile_incomplete")
+
+    /** Student-facing messages for the server's codes (web `ERROR_MESSAGES`). */
+    private val errorMessages = mapOf(
+        "signin_required" to "Your VTOP sign-in needs refreshing before you can use the friend finder.",
+        "missing_credentials" to "Your VTOP sign-in needs refreshing before you can use the friend finder.",
+        "vtop_session_expired" to "Your VTOP session expired. Sign in again and retry.",
+        "vtop_identity_unresolved" to "VTOP didn't confirm who you are. Sign in again and retry.",
+        "amazeid_signin_required" to "Sign in with Amaze ID to use the friend finder.",
+        "amazeid_session_expired" to "Your Amaze ID session expired. Sign in again and retry.",
+        "vtop_session_required" to "Sign in with VTOP and load this semester's attendance before sharing your classes.",
+        "change_limit" to "You've changed your classes too many times today. Try again tomorrow.",
+        "not_joined" to "Share your classes first.",
+        "no_current_semester" to "No social semester has been published yet.",
+        "server_error" to "The server is unreachable right now.",
+        "unexpected_response" to "The server did not return the expected data."
+    )
+
+    /** Public so hosts can pick the right sign-in affordance without string comparisons. */
+    fun isAmazeIdSignInCode(code: String): Boolean = code in amazeIdSignInCodes
+    fun isVtopSignInCode(code: String): Boolean = code in vtopSignInCodes
+    fun messageFor(code: String): String? = errorMessages[code]
+
     private fun JsonObject.stringOrNull(key: String): String? =
         (this[key] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
 
-    /** Server error envelope: `{ success: false, error, detail: { detail }? }`. */
-    private fun JsonObject.errorOf(): SocialApiError {
-        val detail = ((this["detail"] as? JsonObject)?.get("detail") as? JsonPrimitive)
-            ?.content?.takeIf { it.isNotBlank() }
-        return SocialApiError(stringOrNull("error") ?: "unknown", detail)
+    /** The server sends `detail` either as a string or as `{ detail: "..." }`. */
+    private fun JsonObject.detailOf(): String? =
+        stringOrNull("detail")
+            ?: ((this["detail"] as? JsonObject)?.get("detail") as? JsonPrimitive)
+                ?.content?.takeIf { it.isNotBlank() }
+
+    /**
+     * Resolve the caller's semester to the one the friend finder actually supports. The app's
+     * selected semester is a VTOP id (often the fall one) and the web uses the "winter-2026-2027"
+     * label; both must reach the server as `CH20262705`, never as a blocked/unsupported semester.
+     */
+    fun canonicalSocialSemester(requested: String?): String {
+        val value = requested?.trim()?.uppercase().orEmpty()
+        return when {
+            value.isEmpty() -> SOCIAL_SEMESTER_ID
+            value == SOCIAL_SEMESTER_ID -> SOCIAL_SEMESTER_ID
+            value == "WINTER-2026-2027" -> SOCIAL_SEMESTER_ID
+            value.startsWith("CH") && value.length == 10 -> SOCIAL_SEMESTER_ID
+            else -> value
+        }
     }
 
-    private suspend fun <T : Any> post(serializer: KSerializer<T>, path: String, body: Map<String, JsonElement>, what: String): T {
-        val raw = AmazeClient.postAuthorizedValues<JsonElement>(path, body)
-            ?: throw SocialApiError("server_error", "The server did not return $what.")
-        (raw as? JsonObject)?.let { obj -> if (obj.stringOrNull("success") == "false") throw obj.errorOf() }
-        return json.decodeFromJsonElement(serializer, raw)
+    /** Local token check only — no network, no cookies, no VTOP source requirement. */
+    fun hasAmazeIdSession(): Boolean = SessionManager.hasAmazeIdAuth
+
+    private fun requireAmazeIdSession() {
+        if (!hasAmazeIdSession() || AmazeClient.isAmazeIdSignInRequired()) {
+            throw SocialApiError("amazeid_session_expired", "Sign in with Amaze ID to use Social.")
+        }
+    }
+
+    /** VTOP credentials are body data, sent only for publish or a server-requested retry. */
+    private fun vtopSessionBody(): Map<String, JsonElement> = buildMap {
+        val cookies = SessionManager.cookies.value?.takeIf { it.isNotBlank() }
+        val authorizedID = SessionManager.authorizedID.value?.takeIf { it.isNotBlank() }
+        val csrf = SessionManager.csrf.value?.takeIf { it.isNotBlank() }
+        if (cookies != null && authorizedID != null && csrf != null) {
+            put("cookies", JsonPrimitive(cookies))
+            put("authorizedID", JsonPrimitive(authorizedID))
+            put("csrf", JsonPrimitive(csrf))
+        }
+    }
+
+    /** Web `handles[]` fallback: an older server only returns `me.handle`. */
+    private fun withHandlesFallback(obj: JsonObject, handle: String?): JsonObject {
+        val declared = (obj["handles"] as? JsonArray)?.mapNotNull {
+            (it as? JsonPrimitive)?.contentOrNull?.takeIf { h -> h.isNotBlank() }
+        }
+        val handles = if (declared.isNullOrEmpty()) {
+            listOfNotNull(handle?.takeIf { it.isNotBlank() })
+        } else declared
+        return JsonObject(obj.toMap() + ("handles" to JsonArray(handles.map { JsonPrimitive(it) })))
+    }
+
+    private sealed interface Envelope {
+        data class Ok(val body: JsonObject, val status: Int) : Envelope
+        data class Err(val code: String, val detail: String?, val status: Int) : Envelope
+    }
+
+    /** Preserves status + body: a non-2xx is an [Envelope.Err], never a missing value. */
+    private suspend fun send(
+        path: String,
+        method: String,
+        query: Map<String, String>,
+        body: Map<String, JsonElement>
+    ): Envelope {
+        val response = AmazeClient.socialRequest(path, method, query, JsonObject(body))
+        val status = response.status
+        val text = response.body?.takeIf { it.isNotBlank() }
+        if (text == null) {
+            val code = when (status) {
+                401 -> "amazeid_session_expired"
+                0 -> "server_error"
+                else -> "http_$status"
+            }
+            return Envelope.Err(code, null, status)
+        }
+        val element = runCatching { json.parseToJsonElement(text) }.getOrNull()
+        if (element !is JsonObject) {
+            return Envelope.Err("unexpected_response", "The server did not return a Social response.", status)
+        }
+        if (element.stringOrNull("success") == "false") {
+            val code = element.stringOrNull("error")
+                ?: if (status == 401) "amazeid_session_expired" else "http_$status"
+            return Envelope.Err(code, element.detailOf(), status)
+        }
+        if (status !in 200..299) {
+            val code = if (status == 401) "amazeid_session_expired" else "http_$status"
+            return Envelope.Err(code, element.detailOf(), status)
+        }
+        return Envelope.Ok(element, status)
+    }
+
+    /** One validated social call: typed envelope errors, required-field checks, signal cleanup. */
+    private suspend fun <T : Any> call(
+        serializer: KSerializer<T>,
+        path: String,
+        what: String,
+        body: Map<String, JsonElement> = emptyMap(),
+        method: String = "POST",
+        query: Map<String, String> = emptyMap(),
+        retryWithVtop: Boolean = false,
+        normalize: (JsonObject) -> JsonObject = { it },
+        validate: (T) -> Boolean = { true }
+    ): T {
+        requireAmazeIdSession()
+        var envelope = send(path, method, query, body)
+        if (retryWithVtop && envelope is Envelope.Err && envelope.code in vtopRetryCodes) {
+            val credentials = vtopSessionBody()
+            if (credentials.isNotEmpty()) envelope = send(path, method, query, body + credentials)
+        }
+        val (obj, status) = when (envelope) {
+            is Envelope.Ok -> envelope.body to envelope.status
+            is Envelope.Err -> throw SocialApiError(envelope.code, envelope.detail, envelope.status)
+        }
+        val value = runCatching { json.decodeFromJsonElement(serializer, normalize(obj)) }
+            .getOrElse { throw SocialApiError("unexpected_response", "The server did not return $what.", status) }
+        if (!validate(value)) {
+            throw SocialApiError("unexpected_response", "The server did not return $what.", status)
+        }
+        AmazeClient.clearAmazeIdSignInRequired()
+        return value
     }
 
     // -- FFCS friend finder (D-006, op style port of POST /api/social/ffcs-match) ------
@@ -76,7 +223,7 @@ object SocialClient {
         data class Leave(override val semesterId: String) : FfcsMatchRequest
 
         fun toBody(): Map<String, JsonElement> = buildMap {
-            put("semesterId", JsonPrimitive(semesterId.trim().uppercase()))
+            put("semesterId", JsonPrimitive(SocialClient.canonicalSocialSemester(semesterId)))
             when (this@FfcsMatchRequest) {
                 is Get -> put("op", JsonPrimitive("get"))
                 is Publish -> {
@@ -94,71 +241,100 @@ object SocialClient {
         }
     }
 
-    /** POST /api/social/ffcs-match --- Classes Together state for [request] on [semesterId]. */
+    /**
+     * POST /api/social/ffcs-match --- Classes Together state for [request].
+     *
+     * Requires only the Amaze ID token in LOCAL mode. VTOP credentials ride in the JSON body
+     * for a publish, and are added on a server-requested `vtop_session_required` retry.
+     */
     suspend fun ffcsMatchState(request: FfcsMatchRequest): FfcsMatchState {
-        val state = post(FfcsMatchState.serializer(), "social/ffcs-match", request.toBody(), "friend finder data")
-        if (!state.success || state.me.handle.isEmpty()) {
-            throw SocialApiError("unexpected_response", "The server did not return friend finder data.")
+        val body = if (request is FfcsMatchRequest.Publish) {
+            request.toBody() + vtopSessionBody()
+        } else {
+            request.toBody()
         }
-        return state
+        return call(
+            FfcsMatchState.serializer(),
+            "social/ffcs-match",
+            "friend finder data",
+            body = body,
+            retryWithVtop = true,
+            normalize = { obj ->
+                withHandlesFallback(obj, (obj["me"] as? JsonObject)?.stringOrNull("handle"))
+            },
+            validate = { state ->
+                state.success && state.semesterId.isNotBlank() && state.me.handle.isNotBlank()
+            }
+        )
     }
 
     /** GET /api/social/ffcs-match --- discoverable class rosters (no VTOP session needed). */
     suspend fun ffcsMatchClasses(semesterId: String, classIds: List<String> = emptyList()): FfcsClassesResponse {
         val query = buildMap<String, String> {
-            put("semesterId", semesterId.trim().uppercase())
+            put("semesterId", canonicalSocialSemester(semesterId))
             if (classIds.isNotEmpty()) {
                 put("classIds", classIds.map { it.trim().uppercase() }.filter { it.isNotEmpty() }.joinToString(","))
             }
         }
-        val raw = AmazeClient.socialGetRaw("social/ffcs-match", query)
-            ?: throw SocialApiError("server_error", "The server did not return rosters.")
-        (raw as? JsonObject)?.let { obj -> if (obj.stringOrNull("success") == "false") throw obj.errorOf() }
-        return json.decodeFromJsonElement<FfcsClassesResponse>(raw)
+        return call(
+            FfcsClassesResponse.serializer(),
+            "social/ffcs-match",
+            "class rosters",
+            method = "GET",
+            query = query,
+            validate = { it.success && it.semesterId.isNotBlank() }
+        )
     }
 
     // -- People (D-006/D-013) -----------------------------------------------------------
 
     /** POST /api/social/people --- look up a person by AMZ handle. */
-    suspend fun lookupPerson(handle: String): PersonResponse {
-        val person = post(PersonResponse.serializer(), "social/people", mapOf("handle" to JsonPrimitive(handle.trim())), "a person")
-        if (!person.success || person.person.handle.isEmpty()) {
-            throw SocialApiError("unexpected_response", "The server did not return a person.")
-        }
-        return person
-    }
+    suspend fun lookupPerson(handle: String): PersonResponse = call(
+        PersonResponse.serializer(),
+        "social/people",
+        "a person",
+        body = mapOf("handle" to JsonPrimitive(handle.trim())),
+        validate = { it.success && it.person.handle.isNotBlank() }
+    )
 
-    /** POST /api/social/pair/claim --- claim a pairing grant with a peer. */
-    suspend fun claimPair(handle: String, visibility: SocialVisibility = SocialVisibility.FULL): ClaimResponse {
-        val pairing = post(
-            ClaimResponse.serializer(),
-            "social/pair/claim",
-            mapOf(
-                "handle" to JsonPrimitive(handle.trim()),
-                "visibility" to JsonPrimitive(visibility.name.lowercase())
-            ),
-            "a pairing"
-        )
-        if (!pairing.success || pairing.grantId.isEmpty()) {
-            throw SocialApiError("unexpected_response", "The server did not return a pairing.")
+    /**
+     * POST /api/social/pair/claim --- claim a pairing grant with a peer.
+     * An existing grant answers `created:false` with no `secret`; that is a valid result, not an
+     * error and never a reason to store a fabricated secret.
+     */
+    suspend fun claimPair(handle: String, visibility: SocialVisibility = SocialVisibility.FULL): ClaimResponse = call(
+        ClaimResponse.serializer(),
+        "social/pair/claim",
+        "a pairing",
+        body = mapOf(
+            "handle" to JsonPrimitive(handle.trim()),
+            "visibility" to JsonPrimitive(visibility.name.lowercase())
+        ),
+        validate = {
+            it.success && it.grantId.isNotBlank() && (!it.created || it.hasSecret)
         }
-        return pairing
-    }
+    )
 
     /** POST /api/social/grant/revoke --- revoke a grant (either participant). */
-    suspend fun revokeGrant(grantId: String, secret: String): GrantRevokeResponse {
-        return post(GrantRevokeResponse.serializer(), "social/grant/revoke", mapOf("grantId" to JsonPrimitive(grantId), "secret" to JsonPrimitive(secret)), "a revocation")
-    }
+    suspend fun revokeGrant(grantId: String, secret: String): GrantRevokeResponse = call(
+        GrantRevokeResponse.serializer(),
+        "social/grant/revoke",
+        "a revocation",
+        body = mapOf("grantId" to JsonPrimitive(grantId), "secret" to JsonPrimitive(secret)),
+        validate = { it.success && it.grantId.isNotBlank() }
+    )
 
     /** POST /api/social/grant/visibility --- change a grant's visibility. */
-    suspend fun setGrantVisibility(grantId: String, visibility: SocialVisibility): GrantVisibilityResponse {
-        return post(
-            GrantVisibilityResponse.serializer(),
-            "social/grant/visibility",
-            mapOf("grantId" to JsonPrimitive(grantId), "visibility" to JsonPrimitive(visibility.name.lowercase())),
-            "a visibility change"
-        )
-    }
+    suspend fun setGrantVisibility(grantId: String, visibility: SocialVisibility): GrantVisibilityResponse = call(
+        GrantVisibilityResponse.serializer(),
+        "social/grant/visibility",
+        "a visibility change",
+        body = mapOf(
+            "grantId" to JsonPrimitive(grantId),
+            "visibility" to JsonPrimitive(visibility.name.lowercase())
+        ),
+        validate = { it.success && it.grantId.isNotBlank() }
+    )
 
     /** POST /api/social/timetable --- read a peer's timetable through a grant. */
     suspend fun readPeerTimetable(secret: String, handle: String, semester: String? = null): PeerTimetableResponse {
@@ -167,37 +343,67 @@ object SocialClient {
             put("handle", JsonPrimitive(handle.trim()))
             if (!semester.isNullOrBlank()) put("semester", JsonPrimitive(semester))
         }
-        val timetable = post(PeerTimetableResponse.serializer(), "social/timetable", body, "a timetable")
-        if (!timetable.success || timetable.identity.handle.isEmpty()) {
-            throw SocialApiError("unexpected_response", "The server did not return a timetable.")
-        }
-        return timetable
+        return call(
+            PeerTimetableResponse.serializer(),
+            "social/timetable",
+            "a timetable",
+            body = body,
+            validate = { it.success && it.identity.handle.isNotBlank() }
+        )
     }
 
-    /** GET /api/social/semester --- the current social semester, public. */
-    suspend fun fetchCurrentSemester(): SemesterResponse {
-        val raw = AmazeClient.socialGetRaw("social/semester")
-            ?: throw SocialApiError("server_error", "The server did not return a semester.")
-        return json.decodeFromJsonElement<SemesterResponse>(raw)
-    }
+    /** GET /api/social/semester --- the current social semester (Amaze ID auth, no VTOP creds). */
+    suspend fun fetchCurrentSemester(): SemesterResponse = call(
+        SemesterResponse.serializer(),
+        "social/semester",
+        "a social semester",
+        method = "GET",
+        validate = { it.success && !it.semesterId.isNullOrBlank() }
+    )
 
     /** POST /api/social/identity/sync --- push our own derived state and pull peers + grants. */
     suspend fun identitySync(proposedSemesterId: String? = null): SocialSyncPayload {
         val body = if (proposedSemesterId.isNullOrBlank()) emptyMap() else mapOf("proposedSemesterId" to JsonPrimitive(proposedSemesterId))
-        return post(SocialSyncPayload.serializer(), "social/identity/sync", body, "an identity")
+        return call(
+            SocialSyncPayload.serializer(),
+            "social/identity/sync",
+            "an identity",
+            body = body,
+            normalize = { obj ->
+                withHandlesFallback(obj, (obj["identity"] as? JsonObject)?.stringOrNull("handle"))
+            },
+            validate = { it.success && it.identity.handle.isNotBlank() }
+        )
     }
 }
+
+/** Which identity the caller must refresh; kept distinct so the UI never asks for the wrong one. */
+enum class SocialSignInKind { NONE, AMAZE_ID, VTOP }
 
 /** Machine-readable failure of a social call (D-006/D-013, port of web `SocialApiError`). */
 class SocialApiError(
     /** The server's `error` code, e.g. `"handle_not_found"`. */
     val code: String,
     /** The server's human-readable `detail`, when it sent one. */
-    detail: String? = null
-) : Exception(detail ?: code) {
+    val detail: String? = null,
+    /** HTTP status of the failed call, when one was received. */
+    val httpStatus: Int? = null
+) : Exception(detail ?: SocialClient.messageFor(code) ?: code) {
     /** UI hook: true when the caller should surface "Sign in with Amaze ID". */
     val needsAmazeIdSignIn: Boolean
-        get() = code == "amazeid_signin_required" || code == "amazeid_session_expired"
+        get() = SocialClient.isAmazeIdSignInCode(code)
+
+    /** UI hook: true when the caller should surface "Sign in with VTOP". */
+    val needsVtopSignIn: Boolean
+        get() = SocialClient.isVtopSignInCode(code)
+
+    /** Single decision for the sign-in affordance; never conflates the two identities. */
+    val requiredSignIn: SocialSignInKind
+        get() = when {
+            needsAmazeIdSignIn -> SocialSignInKind.AMAZE_ID
+            needsVtopSignIn -> SocialSignInKind.VTOP
+            else -> SocialSignInKind.NONE
+        }
 }
 
 // -- DTO set: mirrors ../AmazeCC/src/types/social.ts + API src/routes/services/social-routes --
@@ -430,7 +636,8 @@ data class FfcsMatchMe(
 data class FfcsClassesResponse(
     val success: Boolean = false,
     val semesterId: String = "",
-    val classes: List<FfcsRosterClass> = emptyList()
+    /** Required by the wire contract; absence means a wrong host/proxy, never "zero classes". */
+    val classes: List<FfcsRosterClass>
 )
 
 // -- DTO set: people / pairing (POST /api/social/people, /social/pair/claim) -----------
@@ -467,7 +674,13 @@ data class ClaimResponse(
     val created: Boolean = false,
     val visibility: SocialVisibility = SocialVisibility.COARSE,
     val peer: ClaimPeer = ClaimPeer()
-)
+) {
+    /** A newly created grant always carries a bearer secret. */
+    val hasSecret: Boolean get() = !secret.isNullOrBlank()
+
+    /** `created:false, secret:null` is a valid existing grant — never fabricate a secret. */
+    val isExistingGrant: Boolean get() = success && grantId.isNotBlank() && !created
+}
 
 @Serializable
 @Immutable

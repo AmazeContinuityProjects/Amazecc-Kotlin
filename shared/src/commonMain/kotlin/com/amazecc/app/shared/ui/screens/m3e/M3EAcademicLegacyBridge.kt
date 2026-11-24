@@ -48,7 +48,9 @@ import com.amazecc.app.shared.state.FriendsViewModel
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.state.SocialApiError
 import com.amazecc.app.shared.state.SocialClient
+import com.amazecc.app.shared.state.SocialSignInKind
 import com.amazecc.app.shared.state.SocialVisibility
+import com.amazecc.app.shared.state.SyncEngine
 import com.amazecc.app.shared.state.SyncModule
 import com.amazecc.app.shared.state.UserStore
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
@@ -418,6 +420,7 @@ fun M3EQBankScreenHost(modifier: Modifier = Modifier) {
 @Composable
 fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
+    val pendingInviteHandle by AppState.pendingInviteHandle.collectAsState()
     val friendsFlow by FriendsViewModel.friends.collectAsState()
     val groupsFlow by FriendsViewModel.groups.collectAsState()
     val academic by AppState.academic.collectAsState()
@@ -442,6 +445,7 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
     var serverError by remember { mutableStateOf<String?>(null) }
     var formError by remember { mutableStateOf<String?>(null) }
     var needsSignIn by remember { mutableStateOf(false) }
+    var signInKind by remember { mutableStateOf(SocialSignInKind.NONE) }
     var isServerLoading by remember { mutableStateOf(false) }
     var peers by remember { mutableStateOf<List<M3ESocialPeerUi>>(emptyList()) }
     var serverClasses by remember { mutableStateOf<List<M3ESocialClassUi>>(emptyList()) }
@@ -458,15 +462,62 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
     var openPeerHandle by remember { mutableStateOf<String?>(null) }
     var peerTimetable by remember { mutableStateOf<M3ESocialTimetableUi?>(null) }
 
+    /** Clear every server-derived field: a signed-out hub must never show stale "synced" data. */
+    fun resetToSignedOut() {
+        handle = ""
+        identityLabel = ""
+        peers = emptyList()
+        serverClasses = emptyList()
+        overlaps = emptyList()
+        serverFreeSlots = emptyList()
+        freeNowHandles = emptyList()
+        currentSlotLabel = ""
+        peerTimetable = null
+        openPeerHandle = null
+        joined = false
+        discoverable = false
+        needsSignIn = true
+        signInKind = SocialSignInKind.AMAZE_ID
+        serverError = "Social is not synced yet. Sign in with Amaze ID to load your handle, peers and classes."
+        isServerLoading = false
+    }
+
+    /** Gate BEFORE any network — a missing local token is a local fact, not a server failure. */
+    fun requireServerSession(): Boolean {
+        if (SocialClient.hasAmazeIdSession()) return true
+        resetToSignedOut()
+        return false
+    }
+
+    /** One decision point for every typed failure: honest copy + the identity that can fix it. */
+    fun showServerError(error: SocialApiError, fallback: String) {
+        signInKind = error.requiredSignIn
+        needsSignIn = signInKind != SocialSignInKind.NONE
+        // The 401 signal is one-shot: we have surfaced the affordance, so consume it now.
+        AmazeClient.clearAmazeIdSignInRequired()
+        serverError = when (signInKind) {
+            SocialSignInKind.AMAZE_ID ->
+                SocialClient.messageFor(error.code) ?: "Sign in with Amaze ID to sync Social."
+            SocialSignInKind.VTOP ->
+                SocialClient.messageFor(error.code)
+                    ?: "Sign in with VTOP and load this semester's attendance to use Social."
+            SocialSignInKind.NONE ->
+                error.message?.takeIf { it.isNotBlank() } ?: fallback
+        }
+        isServerLoading = false
+    }
+
     /**
      * One fresh read of server truth: identity + grants, peer busy maps (common-free grid),
      * and the caller's Classes Together state. Sign-in failures stay inline with an explicit
      * action instead of silently redirecting on mount.
      */
     suspend fun loadServer() {
+        if (!requireServerSession()) return
         isServerLoading = true
         serverError = null
         needsSignIn = false
+        signInKind = SocialSignInKind.NONE
         try {
             val sync = SocialClient.identitySync()
             handle = sync.identity.handle
@@ -475,7 +526,9 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                 ?: selectedSemester.trim().uppercase()
 
             peers = sync.peers.filter { !it.isSelf && it.handle.isNotBlank() }.map { p ->
-                val grant = sync.grantSecrets.firstOrNull { it.peerHandle == p.handle }
+                val grant = sync.grantSecrets.firstOrNull {
+                    it.peerHandle.equals(p.handle, ignoreCase = true)
+                }
                 M3ESocialPeerUi(
                     handle = p.handle,
                     name = p.name.orEmpty(),
@@ -546,19 +599,84 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                 )
             }
         } catch (e: SocialApiError) {
-            needsSignIn = e.needsAmazeIdSignIn
-            serverError = if (needsSignIn) {
-                "Sign in with Amaze ID to use Social."
-            } else {
-                e.message?.takeIf { it.isNotBlank() } ?: "Social is unavailable (${e.code})."
-            }
+            showServerError(e, "Social is unavailable (${e.code}).")
         } catch (e: Exception) {
             serverError = e.message?.takeIf { it.isNotBlank() } ?: "Social is unavailable."
         }
         isServerLoading = false
     }
 
+    /**
+     * One lookup + claim trip shared by the manual sheet and the `?add=` invite link. A newly
+     * minted grant carries a secret; an existing grant answers `created:false, secret:null` —
+     * both are valid. The bearer secret itself is never invented: loadServer() re-reads it from
+     * identitySync().grantSecrets and opens the peer through that real grant.
+     */
+    fun submitHandleLookup(raw: String) {
+        val parsed = M3ESocialProto.handleFromInvite(raw)
+        when {
+            !M3ESocialProto.isValidHandle(parsed) ->
+                formError = "That does not look like a handle. Expected AMZ-XXXX-XXXX."
+            parsed.equals(handle, ignoreCase = true) ->
+                formError = "That is your own handle."
+            !requireServerSession() ->
+                formError = serverError
+            else -> {
+                isServerLoading = true
+                formError = null
+                scope.launch {
+                    try {
+                        SocialClient.lookupPerson(parsed)
+                        val claim = SocialClient.claimPair(parsed, SocialVisibility.FULL)
+                        when {
+                            claim.hasSecret -> Unit // fresh grant; secret is stored server-side
+                            claim.isExistingGrant -> Unit // already paired; secret:null is valid
+                            else -> throw SocialApiError(
+                                "unexpected_response",
+                                "The server did not return a usable pairing."
+                            )
+                        }
+                        addHandleInput = ""
+                        addHandleOpen = false
+                        openPeerHandle = parsed
+                        peerTimetable = null
+                        loadServer()
+                        if (peerTimetable == null) {
+                            // Never claim a timetable was opened when no usable secret exists.
+                            serverError = "You're paired with $parsed, but no usable grant secret is on this device yet. Refresh Social to try again."
+                            formError = serverError
+                        }
+                    } catch (e: SocialApiError) {
+                        showServerError(e, "Could not pair (${e.code}).")
+                        formError = serverError
+                    } catch (e: Exception) {
+                        formError = e.message?.takeIf { it.isNotBlank() } ?: "Could not pair with that handle."
+                        isServerLoading = false
+                    }
+                }
+            }
+        }
+    }
+
     LaunchedEffect(Unit) { loadServer() }
+
+    // D-193: `?add=` parked a handle before this screen mounted. Open the prefilled Add-peer
+    // sheet, look it up once, and clear the note immediately so a later invite still works.
+    LaunchedEffect(pendingInviteHandle) {
+        val invited = pendingInviteHandle ?: return@LaunchedEffect
+        AppState.consumePendingInviteHandle()
+        val parsed = M3ESocialProto.handleFromInvite(invited)
+        if (!M3ESocialProto.isValidHandle(parsed)) return@LaunchedEffect
+        if (parsed.equals(handle, ignoreCase = true)) {
+            formError = "That is your own handle."
+            return@LaunchedEffect
+        }
+        activeTab = M3ESocialTab.SHARE
+        addHandleInput = parsed
+        addHandleOpen = true
+        formError = null
+        submitHandleLookup(parsed)
+    }
 
     val userAttendance = remember(academic) {
         resolveCurrentSemester(academic)?.courses?.values?.map { it.toAttendanceItem() }.orEmpty()
@@ -600,6 +718,7 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                 identityLabel = identityLabel,
                 serverError = serverError,
                 needsSignIn = needsSignIn,
+                signInKind = signInKind,
                 isServerLoading = isServerLoading,
                 peers = peers,
                 serverClasses = serverClasses,
@@ -654,10 +773,20 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                     is M3ESocialAction.DeleteGroup -> FriendsViewModel.deleteGroup(action.groupId)
                     is M3ESocialAction.CopyShareCode -> clipboard.setText(AnnotatedString(shareCode))
                     is M3ESocialAction.Refresh -> AppState.loadAllData()
-                    is M3ESocialAction.RefreshServer -> scope.launch { loadServer() }
+                    is M3ESocialAction.RefreshServer -> {
+                        if (requireServerSession()) scope.launch { loadServer() }
+                    }
                     is M3ESocialAction.Back -> backToHub()
 
+                    // D-193 follow-up: prepare() now parks SOCIAL and opens the same real Amaze ID
+                    // destination (Screen.AMAZE_ID_SIGN_IN) used by Friend Finder. The LOGIN form
+                    // below is VTOP-only and can never create an Amaze ID session.
                     is M3ESocialAction.SignIn -> SignInReturn.prepare(Screen.SOCIAL)
+                    is M3ESocialAction.SignInVtop -> {
+                        // A fresh VTOP login + attendance load, not the Amaze ID token flow.
+                        AmazeClient.clearAmazeIdSignInRequired()
+                        SyncEngine.setShowSyncDialog(true, minimized = false)
+                    }
                     is M3ESocialAction.CopyHandle ->
                         if (handle.isNotBlank()) clipboard.setText(AnnotatedString(handle)) else Unit
                     is M3ESocialAction.CopyInviteLink ->
@@ -692,39 +821,7 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                     is M3ESocialAction.OpenAddHandleDialog -> { addHandleOpen = true; formError = null }
                     is M3ESocialAction.CloseAddHandleDialog -> { addHandleOpen = false; formError = null }
                     is M3ESocialAction.UpdateAddHandleInput -> { addHandleInput = action.input; formError = null }
-                    is M3ESocialAction.AddHandle -> {
-                        val parsed = M3ESocialProto.handleFromInvite(addHandleInput)
-                        when {
-                            !M3ESocialProto.isValidHandle(parsed) ->
-                                formError = "That does not look like a handle. Expected AMZ-XXXX-XXXX."
-                            parsed.equals(handle, ignoreCase = true) ->
-                                formError = "That is your own handle."
-                            else -> {
-                                isServerLoading = true
-                                formError = null
-                                scope.launch {
-                                    try {
-                                        SocialClient.lookupPerson(parsed)
-                                        SocialClient.claimPair(parsed, SocialVisibility.FULL)
-                                        addHandleInput = ""
-                                        addHandleOpen = false
-                                        loadServer()
-                                    } catch (e: SocialApiError) {
-                                        needsSignIn = e.needsAmazeIdSignIn
-                                        formError = when {
-                                            needsSignIn -> "Sign in with Amaze ID to pair."
-                                            e.code == "handle_not_found" -> "No student has that handle."
-                                            else -> e.message?.takeIf { it.isNotBlank() } ?: "Could not pair (${e.code})."
-                                        }
-                                        isServerLoading = false
-                                    } catch (e: Exception) {
-                                        formError = e.message ?: "Could not pair with that handle."
-                                        isServerLoading = false
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    is M3ESocialAction.AddHandle -> submitHandleLookup(addHandleInput)
 
                     is M3ESocialAction.OpenImportDialog -> { importOpen = true; formError = null }
                     is M3ESocialAction.CloseImportDialog -> { importOpen = false; formError = null }
@@ -749,30 +846,33 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                             is M3ESocialAction.SetDiscoverable -> FfcsMatchRequest.Visibility(sem, action.discoverable)
                             else -> FfcsMatchRequest.Get(sem)
                         }
-                        scope.launch {
-                            try {
-                                SocialClient.ffcsMatchState(request)
-                                loadServer()
-                            } catch (e: SocialApiError) {
-                                needsSignIn = e.needsAmazeIdSignIn
-                                serverError = if (needsSignIn) "Sign in with Amaze ID to manage Classes Together."
-                                else e.message?.takeIf { it.isNotBlank() } ?: "Could not update Classes Together (${e.code})."
-                                isServerLoading = false
-                            } catch (e: Exception) {
-                                serverError = e.message ?: "Could not update Classes Together."
-                                isServerLoading = false
+                        if (requireServerSession()) {
+                            scope.launch {
+                                try {
+                                    SocialClient.ffcsMatchState(request)
+                                    loadServer()
+                                } catch (e: SocialApiError) {
+                                    showServerError(e, "Could not update Classes Together (${e.code}).")
+                                } catch (e: Exception) {
+                                    serverError = e.message ?: "Could not update Classes Together."
+                                    isServerLoading = false
+                                }
                             }
                         }
                     }
 
                     is M3ESocialAction.RevokeGrant -> {
-                        scope.launch {
-                            try {
-                                SocialClient.revokeGrant(action.grantId, action.secret)
-                                loadServer()
-                            } catch (e: Exception) {
-                                serverError = e.message ?: "Could not revoke that pairing."
-                                isServerLoading = false
+                        if (requireServerSession()) {
+                            scope.launch {
+                                try {
+                                    SocialClient.revokeGrant(action.grantId, action.secret)
+                                    loadServer()
+                                } catch (e: SocialApiError) {
+                                    showServerError(e, "Could not revoke that pairing (${e.code}).")
+                                } catch (e: Exception) {
+                                    serverError = e.message ?: "Could not revoke that pairing."
+                                    isServerLoading = false
+                                }
                             }
                         }
                     }
@@ -782,30 +882,46 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                         } else {
                             SocialVisibility.COARSE
                         }
-                        scope.launch {
-                            try {
-                                SocialClient.setGrantVisibility(action.grantId, visibility)
-                                loadServer()
-                            } catch (e: Exception) {
-                                serverError = e.message ?: "Could not change that pairing's visibility."
-                                isServerLoading = false
+                        if (requireServerSession()) {
+                            scope.launch {
+                                try {
+                                    SocialClient.setGrantVisibility(action.grantId, visibility)
+                                    loadServer()
+                                } catch (e: SocialApiError) {
+                                    showServerError(e, "Could not change that pairing's visibility (${e.code}).")
+                                } catch (e: Exception) {
+                                    serverError = e.message ?: "Could not change that pairing's visibility."
+                                    isServerLoading = false
+                                }
                             }
                         }
                     }
                     is M3ESocialAction.OpenPeer -> {
                         openPeerHandle = action.handle
                         peerTimetable = null
-                        val peer = peers.firstOrNull { it.handle == action.handle }
-                        if (peer == null || peer.secret.isBlank() || peer.grantId.isBlank()) {
-                            serverError = "No active grant for that peer."
-                        } else {
+                        if (requireServerSession()) {
                             scope.launch {
+                                // claimPair answers `secret:null` for an already-paired friend;
+                                // the bearer secret is the one stored in identitySync().grantSecrets.
+                                var peer = peers.firstOrNull { it.handle.equals(action.handle, ignoreCase = true) }
+                                if (peer?.secret?.isBlank() != false) {
+                                    loadServer() // refresh sync, which reads the timetable through a real grant
+                                    peer = peers.firstOrNull { it.handle.equals(action.handle, ignoreCase = true) }
+                                }
+                                val grant = peer?.takeIf { it.secret.isNotBlank() && it.grantId.isNotBlank() }
+                                if (grant == null) {
+                                    serverError = if (peer == null) "No active grant for that peer."
+                                    else "This pairing's secret isn't available on this device yet. Refresh Social to try again."
+                                    isServerLoading = false
+                                    return@launch
+                                }
+                                if (peerTimetable?.handle.equals(action.handle, ignoreCase = true) == true) return@launch
                                 try {
-                                    val timetable = SocialClient.readPeerTimetable(peer.secret, peer.handle, serverSemester)
+                                    val timetable = SocialClient.readPeerTimetable(grant.secret, grant.handle, serverSemester)
                                     peerTimetable = M3ESocialTimetableUi(
-                                        handle = peer.handle,
+                                        handle = grant.handle,
                                         title = timetable.identity.displayName?.takeIf { it.isNotBlank() }
-                                            ?: peer.name.ifBlank { peer.handle },
+                                            ?: grant.name.ifBlank { grant.handle },
                                         semesterLabel = timetable.identity.semesterLabel,
                                         courses = timetable.courses.map { c ->
                                             listOfNotNull(
@@ -818,8 +934,11 @@ fun M3ESocialScreenHost(modifier: Modifier = Modifier) {
                                         stale = timetable.stale,
                                         coarse = timetable.visibility == SocialVisibility.COARSE
                                     )
+                                } catch (e: SocialApiError) {
+                                    showServerError(e, "Could not read that timetable (${e.code}).")
                                 } catch (e: Exception) {
                                     serverError = e.message ?: "Could not read that timetable."
+                                    isServerLoading = false
                                 }
                             }
                         }

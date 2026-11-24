@@ -67,6 +67,10 @@ enum class Screen { SPLASH,
     EVENTS, QBANK, SOCIAL,
     // D-164: server-backed Friend Finder discovery screen (distinct from SOCIAL).
     FRIEND_FINDER,
+    // D-193 follow-up: the real Amaze ID token flow. LOGIN is a VTOP-only form and can never
+    // persist an Amaze ID session, so social surfaces park their return target and open this
+    // route instead. Normal route (not a gate) so back/dismissal follows the regular stack.
+    AMAZE_ID_SIGN_IN,
     FFCS_PLANNER, FREE_CLASSROOMS, CALENDAR, GRADES, GPA_PREDICTOR,
     // D-153: the academic report is a normal, nav-bar-visible screen (not a LIFO overlay).
     STUDENT_REPORT,
@@ -1100,6 +1104,9 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             setOf("friend-finder", "tools-social-friend-finder"),
             commandPalette = true
         ),
+        // D-193 follow-up: a transit route for the Amaze ID token sheet, not a discoverable
+        // module. Metadata only — no pinnable/sidebar/app-library/command-palette presence.
+        Screen.AMAZE_ID_SIGN_IN to ScreenNavMeta(Screen.AMAZE_ID_SIGN_IN),
         Screen.CABSHARE to ScreenNavMeta(Screen.CABSHARE, setOf("tools-cabshare", "cabshare"), pinnable = true, commandPalette = true),
         Screen.PROFILE to ScreenNavMeta(Screen.PROFILE, setOf("profile"), pinnable = true, pinId = "profile", pinLabel = "Profile", sidebar = true, appLibrary = true, commandPalette = true),
         Screen.MORE to ScreenNavMeta(Screen.MORE, setOf("more"), pinnable = true, pinId = "more", pinLabel = "More"),
@@ -1267,14 +1274,54 @@ private val _commandPaletteOpen = MutableStateFlow(false)
         /** A schedule share code, parsed & imported via [com.amazecc.app.shared.utils.SocialUtils]. */
         data class ShareCode(val code: String) : DeepLinkRoute()
         data class Tab(val screen: Screen) : DeepLinkRoute()
+        /** `?add=<AMZ-XXXX-XXXX>` — an invite: park the handle and open Social's Add-peer sheet. */
+        data class AddPeer(val handle: String) : DeepLinkRoute()
         /** `amazecc://auth-callback/…` — OIDC callback for Amaze ID (D-002, deferred). */
         data class AuthCallback(val raw: String) : DeepLinkRoute()
     }
 
+    /** Web `HANDLE_RE` — Crockford-style alphabet without I/L/O/U (D-193 invite links). */
+    private val inviteHandleRe = Regex("^AMZ-[0-9A-HJKMNP-TV-Z]{4}-[0-9A-HJKMNP-TV-Z]{4}$")
+
+    fun isValidInviteHandle(raw: String?): Boolean =
+        inviteHandleRe.matches(raw.orEmpty().trim().uppercase())
+
     private val _incomingDeepLink = MutableStateFlow<String?>(null)
     val incomingDeepLink: StateFlow<String?> = _incomingDeepLink.asStateFlow()
 
-    fun setPendingDeepLink(uri: String) { _incomingDeepLink.value = uri }
+    /**
+     * A validated `add=` handle waits here until the Social host opens. It is a one-shot
+     * parking slot: [consumePendingInviteHandle] clears it, so a later invite can replace it.
+     */
+    private val _pendingInviteHandle = MutableStateFlow<String?>(null)
+    val pendingInviteHandle: StateFlow<String?> = _pendingInviteHandle.asStateFlow()
+
+    fun parkInviteHandle(handle: String) {
+        val normalised = handle.trim().uppercase()
+        if (isValidInviteHandle(normalised)) _pendingInviteHandle.value = normalised
+    }
+
+    /** Read-and-clear the parked invite; null when none is pending. */
+    fun consumePendingInviteHandle(): String? {
+        val handle = _pendingInviteHandle.value
+        _pendingInviteHandle.value = null
+        return handle
+    }
+
+    /**
+     * Both Android delivery paths land here: an `intent.data` URI and the legacy
+     * `target_screen` extra (encoded as `amazecc://tab?screen=<Screen.name>` so the same
+     * parser, application and clearing rules cover both). An invalid extra is ignored.
+     */
+    fun setPendingDeepLink(uri: String? = null, targetScreen: String? = null) {
+        _incomingDeepLink.value = when {
+            !uri.isNullOrBlank() -> uri.trim()
+            !targetScreen.isNullOrBlank() &&
+                runCatching { Screen.valueOf(targetScreen.trim().uppercase()) }.getOrNull() != null ->
+                "amazecc://tab?screen=${targetScreen.trim().uppercase()}"
+            else -> null
+        }
+    }
 
     /** Applies a parsed deep link; returns false when nothing routed. */
     fun consumeIncomingDeepLink(): Boolean {
@@ -1284,13 +1331,31 @@ private val _commandPaletteOpen = MutableStateFlow(false)
     }
 
     fun applyDeepLink(uri: String): Boolean {
+        val queryPart = uri.trim().substringAfter('?', "")
+
+        // D-193: `?add=<handle>` (web invite link or amazecc:// URI) parks the handle and
+        // switches to Social, where the Add-peer sheet is prefilled and looked up once.
+        // Query params are read before the host switch so both link families behave alike.
+        val addParam = queryPart.substringAfter("add=", "").substringBefore('&').substringBefore('#')
+        if (isValidInviteHandle(addParam)) {
+            parkInviteHandle(addParam)
+            closeGuestLanding()
+            navigateTo(Screen.SOCIAL)
+            return true
+        }
+        // A new non-invite link must not resurrect a stale invite on a later Social visit.
+        consumePendingInviteHandle()
+
         // D-164: the web opens Friend Finder with `/?open=friend-finder`. Accept the same
         // `open=<web tab name>` spelling on any amazecc:// URI before the host-based routes,
         // so a web-originated link lands on the real screen instead of being dropped.
-        val queryPart = uri.trim().substringAfter('?', "")
         val openTarget = queryPart.substringAfter("open=", "").substringBefore('&')
         if (openTarget.isNotBlank()) {
-            screenFromTabParam(openTarget)?.let { navigateTo(it); return true }
+            screenFromTabParam(openTarget)?.let {
+                closeGuestLanding()
+                navigateTo(it)
+                return true
+            }
         }
         return when (val route = parseDeepLink(uri)) {
             is DeepLinkRoute.ShareCode -> {
@@ -1301,11 +1366,21 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 // owns the friend cache/StateFlow, so bypassing it with a direct write would
                 // leave the UI empty after the deep link.
                 if (friend?.regNumber?.isNotBlank() == true) FriendsViewModel.addFriendFromCode(route.code)
+                closeGuestLanding()
                 navigateTo(Screen.SOCIAL)
                 true
             }
             is DeepLinkRoute.Tab -> {
-                if (route.screen != Screen.SPLASH) navigateTo(route.screen)
+                if (route.screen != Screen.SPLASH) {
+                    closeGuestLanding()
+                    navigateTo(route.screen)
+                }
+                true
+            }
+            is DeepLinkRoute.AddPeer -> {
+                parkInviteHandle(route.handle)
+                closeGuestLanding()
+                navigateTo(Screen.SOCIAL)
                 true
             }
             is DeepLinkRoute.AuthCallback -> { /* D-002: manifest + login wiring deferred */ true }
@@ -1321,10 +1396,20 @@ private val _commandPaletteOpen = MutableStateFlow(false)
      * - `amazecc://tab?tab=<Screen>` — web parity: `/?tab=` — open a tab
      * - `amazecc://tab?open=<Screen>` / `amazecc://open?open=<Screen>` — web parity:
      *   `/?open=friend-finder` (D-164); [applyDeepLink] also accepts `open=` on any host.
+     * - `?add=<AMZ-XXXX-XXXX>` (D-193) — an invite, parked for Social's Add-peer sheet.
+     * - `amazecc://tab?screen=<Screen.name>` — the legacy Android `target_screen` extra,
+     *   encoded by [setPendingDeepLink] so it uses the same pending queue.
      * - `amazecc://auth-callback/…` — OIDC callback (D-002, deferred)
      */
     fun parseDeepLink(uri: String): DeepLinkRoute? {
-        val match = Regex("^amazecc://([^/?#]+)([^#]*)(#.*)?$").find(uri.trim()) ?: return null
+        val trimmed = uri.trim()
+        // The web invite link is https://amazecc.app/?add=… — not an amazecc:// URI. Accept it
+        // (and the scheme form) by reading the query before the host-based routes.
+        val addParam = trimmed.substringAfter('?', "").substringAfter("add=", "")
+            .substringBefore('&').substringBefore('#')
+        if (isValidInviteHandle(addParam)) return DeepLinkRoute.AddPeer(addParam.trim().uppercase())
+
+        val match = Regex("^amazecc://([^/?#]+)([^#]*)(#.*)?$").find(trimmed) ?: return null
         val host = match.groupValues[1].lowercase()
         val query = match.groupValues[2]
         return when (host) {
@@ -1335,8 +1420,11 @@ private val _commandPaletteOpen = MutableStateFlow(false)
             "tab" -> screenFromTabParam(
                 query.substringAfter("tab=", "").ifBlank { query.substringAfter("open=", "") }
             )?.let { DeepLinkRoute.Tab(it) }
+                ?: query.substringAfter("screen=", "").takeIf { it.isNotBlank() }
+                    ?.let { runCatching { Screen.valueOf(it.trim().uppercase()) }.getOrNull() }
+                    ?.let { DeepLinkRoute.Tab(it) }
             "open" -> screenFromTabParam(query.substringAfter("open=", ""))?.let { DeepLinkRoute.Tab(it) }
-            "auth-callback" -> DeepLinkRoute.AuthCallback(uri.trim())
+            "auth-callback" -> DeepLinkRoute.AuthCallback(trimmed)
             else -> null
         }
     }

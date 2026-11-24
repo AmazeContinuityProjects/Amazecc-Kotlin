@@ -979,6 +979,88 @@ object AmazeClient {
         }
     }
 
+    /** One social HTTP outcome. A non-2xx keeps its status *and* body — the typed client maps
+     * `{ success: false, error, detail }` itself instead of receiving a collapsed `null`. */
+    internal data class SocialHttpResponse(val status: Int, val body: String?)
+
+    /** Testable description of a social request: no VTOP cookies, credentials only in [body]. */
+    internal data class SocialRequestDescriptor(
+        val path: String,
+        val url: String,
+        val method: String,
+        val query: Map<String, String>,
+        val body: JsonObject,
+        val headers: Map<String, String>
+    )
+
+    /** Error codes where a 401 really means "Amaze ID", not a VTOP-session 401 from the route. */
+    private val amazeIdSocialErrorCodes = setOf("amazeid_signin_required", "amazeid_session_expired")
+
+    /**
+     * Test seam for the D-193 social transport. Null in production; when set, the live HTTP call
+     * is replaced by the captured [SocialRequestDescriptor] so request bodies, auth headers and
+     * error mapping can be asserted offline.
+     */
+    internal var socialRequestOverride: (suspend (SocialRequestDescriptor) -> SocialHttpResponse)? = null
+
+    /**
+     * D-193: the transport for every `/api/social/...` call.
+     *
+     * Unlike [postAuthorizedRaw] the API boundary here is the stored Amaze ID token (Bearer, or
+     * DPoP when the token has a `confirmation`), attached by [amazeAuthHeaders]. It therefore
+     * works in `LOCAL`, `REMOTE` and `OFFLINE_CACHE` VTOP modes and never demands REMOTE VTOP
+     * cookies. VTOP credentials are call-site JSON body fields (publish / server retry only)
+     * and are never placed in the URL.
+     */
+    internal suspend fun socialRequest(
+        path: String,
+        method: String = "GET",
+        query: Map<String, String> = emptyMap(),
+        body: JsonObject = JsonObject(emptyMap())
+    ): SocialHttpResponse {
+        val authHeaders = amazeAuthHeaders(
+            token = SessionManager.amazeAccessToken.value,
+            dpopHeader = SessionManager.amazeDpopHeader.value,
+            confirmation = SessionManager.amazeTokenConfirmation.value
+        )
+        val descriptor = SocialRequestDescriptor(
+            path = path,
+            url = "$baseUrl/api/$path",
+            method = method,
+            query = query,
+            body = body,
+            headers = authHeaders
+        )
+        socialRequestOverride?.let { return it(descriptor) }
+        return try {
+            val response: HttpResponse = httpClient.request(descriptor.url) {
+                this.method = if (method.equals("POST", ignoreCase = true)) HttpMethod.Post else HttpMethod.Get
+                authHeaders.forEach { (name, value) -> header(name, value) }
+                query.forEach { (k, v) -> parameter(k, v) }
+                if (this@AmazeClient.socialRequestMethodIsPost(method)) {
+                    contentType(ContentType.Application.Json)
+                    setBody(body.toString())
+                }
+            }
+            val text = response.bodyAsText()
+            // A route-level 401 can also mean "VTOP session required" (ffcs-match resolves the
+            // caller from either identity). Only mark the global Amaze ID signal when the body
+            // does not name a different, typed cause.
+            val code = runCatching { (jsonConfig.parseToJsonElement(text) as? JsonObject)?.get("error") }
+                .getOrNull() as? JsonPrimitive
+            val codeText = code?.content
+            if (response.status.value == 401 &&
+                (codeText == null || codeText in amazeIdSocialErrorCodes)
+            ) markAmazeAuthRequired(response.status)
+            SocialHttpResponse(response.status.value, text)
+        } catch (_: Exception) {
+            SocialHttpResponse(0, null)
+        }
+    }
+
+    /** Kept as a tiny helper so the Ktor request lambda never has to capture `method` twice. */
+    private fun socialRequestMethodIsPost(method: String): Boolean = method.equals("POST", ignoreCase = true)
+
     private suspend inline fun <reified T> postAuthorizedBody(endpoint: String, body: String): T? {
         if (vtopSource != com.amazecc.app.shared.vtop.VtopSource.REMOTE) return null
         if (!SessionManager.hasRemoteCookies) return null
@@ -1077,6 +1159,9 @@ object AmazeClient {
 
     /** Expose the explicit auth signal to callers without changing their result types. */
     fun isAmazeIdSignInRequired(): Boolean = SessionManager.amazeAuthRequired.value
+
+    /** Consume the signal after a guarded call completed successfully (D-193). */
+    fun clearAmazeIdSignInRequired() = SessionManager.clearAmazeAuthRequired()
 
     /** GET a Koha route from the primary host, then the legacy host. HTTP status is checked
      * before decoding so a 404 body can never be mistaken for a successful payload. */
