@@ -207,6 +207,7 @@ object AcademicMerge {
     fun upsertAttendance(academic: AcademicData, semesterId: String, res: AttendanceRes?): AcademicData {
         val cleaned = AppSanitizers.sanitizeAttendance(res) ?: return academic
         val items = cleaned.attendance.orEmpty()
+        if (items.isEmpty()) return academic
         return updateSemester(academic, semesterId) { sem ->
             val courses = sem.courses.mapValues { (_, c) -> c.copy(attendance = null) }.toMutableMap()
             // An embedded course arrives as two rows and each keeps its own key, its own slot and

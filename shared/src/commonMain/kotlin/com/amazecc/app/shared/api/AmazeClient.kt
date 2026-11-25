@@ -47,6 +47,7 @@ import com.amazecc.app.shared.utils.FacultyUtils
 import com.amazecc.app.shared.utils.UpdateConfig
 import com.amazecc.app.shared.utils.DemoData
 import com.amazecc.app.shared.domain.CourseAttendance
+import com.amazecc.app.shared.domain.ClassStats
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.state.AppDataStore
 import com.amazecc.app.shared.state.AppState
@@ -1550,13 +1551,15 @@ object AmazeClient {
         )
     }
 
-    fun fallbackCachedExamSchedule(semesterId: String?): ExamScheduleRes? {
+    fun fallbackCachedExamSchedule(semesterId: String?, markOffline: Boolean = false): ExamScheduleRes? {
         val academic = com.amazecc.app.shared.state.AppDataStore.academic.value
         val sem = (if (semesterId != null) academic.semesters[semesterId] else null)
             ?: academic.semesters.values.firstOrNull()
             ?: return null
         if (sem.exams.isEmpty()) return null
-        com.amazecc.app.shared.state.AppState.markServedFromCache("Exam Schedule")
+        if (markOffline) {
+            com.amazecc.app.shared.state.AppState.markServedFromCache("Exam Schedule")
+        }
         return ExamScheduleRes(
             success = true,
             rawScheduleUpper = mapOf("EXAM" to sem.exams),
@@ -1714,7 +1717,7 @@ object AmazeClient {
         val cachedAtt = fallbackCachedAttendance(semesterId)
         val cachedMarks = fallbackCachedMarks(semesterId)
         return if (cachedAtt != null) AcademicSyncResult(cachedAtt, cachedMarks)
-        else AcademicSyncResult(AttendanceRes(success = false, message = "Attendance unavailable"))
+        else AcademicSyncResult(AttendanceRes(success = false, error = "Attendance unavailable", message = "Attendance unavailable"))
     }
 
     suspend fun getTimetable(semesterId: String? = null): TimetableRes {
@@ -1882,15 +1885,24 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchHostel()
+                    ?: com.amazecc.app.shared.state.AppDataStore.hostelDetails.value
                     ?: HostelDetails(success = false, error = "VTOP hostel details unavailable")
             } catch (e: Exception) {
-                HostelDetails(success = false, error = e.message ?: e.toString())
+                com.amazecc.app.shared.state.AppDataStore.hostelDetails.value
+                    ?: HostelDetails(success = false, error = e.message ?: e.toString())
             }
         }
         return try {
-            postAuthorized<HostelDetails>("hostel") ?: HostelDetails(success = false, message = "Empty response")
+            val res = postAuthorized<HostelDetails>("hostel")
+            if (res != null && res.success) {
+                com.amazecc.app.shared.state.AppDataStore.setHostelDetails(res)
+                res
+            } else {
+                com.amazecc.app.shared.state.AppDataStore.hostelDetails.value ?: res ?: HostelDetails(success = false, message = "Empty response")
+            }
         } catch (e: Exception) {
-            HostelDetails(success = false, message = e.message, error = e.toString())
+            com.amazecc.app.shared.state.AppDataStore.hostelDetails.value
+                ?: HostelDetails(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -1909,9 +1921,11 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
         if (useMockData) return DemoData.get("messMenu", MessMenuRes.serializer()) ?: MessMenuRes()
         return try {
             val url = "$UNMESSIFY_BASE/VITC-${messGenderLetter(gender)}-${messTypeLetter(messType)}.json"
-            httpClient.get(url).body()
+            val res = httpClient.get(url).body<MessMenuRes>()
+            com.amazecc.app.shared.state.AppDataStore.setMessMenu(res)
+            res
         } catch (e: Exception) {
-            MessMenuRes()
+            com.amazecc.app.shared.state.AppDataStore.messMenu.value ?: MessMenuRes()
         }
     }
 
@@ -1923,9 +1937,11 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
                 "C" -> if (gender.equals("FEMALE", true)) "VITC-CG-L.json" else "VITC-CB-L.json"
                 else -> "VITC-$block-L.json"
             }
-            httpClient.get("$UNMESSIFY_BASE/$file").body()
+            val res = httpClient.get("$UNMESSIFY_BASE/$file").body<LaundryRes>()
+            com.amazecc.app.shared.state.AppDataStore.setLaundrySchedule(res)
+            res
         } catch (e: Exception) {
-            LaundryRes()
+            com.amazecc.app.shared.state.AppDataStore.laundrySchedule.value ?: LaundryRes()
         }
     }
 
@@ -1965,9 +1981,9 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
                 val res = com.amazecc.app.shared.vtop.VtopExamScraper.fetchExamSchedule(semester)
                     ?: com.amazecc.app.shared.vtop.VtopDataSource.fetchExamSchedule(semester)
                 if (res != null && res.success && res.schedule.isNotEmpty()) res
-                else fallbackCachedExamSchedule(semester) ?: res ?: ExamScheduleRes(success = false, error = "VTOP exam schedule unavailable")
+                else fallbackCachedExamSchedule(semester, markOffline = true) ?: res ?: ExamScheduleRes(success = false, error = "VTOP exam schedule unavailable")
             } catch (e: Exception) {
-                fallbackCachedExamSchedule(semesterId) ?: ExamScheduleRes(success = false, error = e.toString())
+                fallbackCachedExamSchedule(semesterId, markOffline = true) ?: ExamScheduleRes(success = false, error = e.toString())
             }
         }
 
@@ -1996,7 +2012,7 @@ if (useMockData) return DemoData.get("hostel", HostelDetails.serializer()) ?: Ho
             } catch (_: Exception) {}
         }
 
-        return fallbackCachedExamSchedule(semesterId) ?: ExamScheduleRes(success = false, message = "Empty response")
+        return fallbackCachedExamSchedule(semesterId, markOffline = true) ?: ExamScheduleRes(success = false, message = "Empty response")
     }
 
     suspend fun getCurriculum(semesterId: String? = null): CurriculumRes {
@@ -2008,17 +2024,26 @@ if (useMockData) return DemoData.get("curriculum", CurriculumRes.serializer()) ?
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchCurriculum()
+                    ?: com.amazecc.app.shared.state.AppDataStore.curriculum.value
                     ?: CurriculumRes(success = false, error = "VTOP curriculum unavailable")
             } catch (e: Exception) {
-                CurriculumRes(success = false, error = e.toString())
+                com.amazecc.app.shared.state.AppDataStore.curriculum.value
+                    ?: CurriculumRes(success = false, error = e.toString())
             }
         }
         return try {
             val params = mutableMapOf<String, String>()
             if (semesterId != null) params["semesterId"] = semesterId
-            postAuthorized<CurriculumRes>("curriculum", params) ?: CurriculumRes(success = false, message = "Empty response")
+            val res = postAuthorized<CurriculumRes>("curriculum", params)
+            if (res != null && res.success) {
+                com.amazecc.app.shared.state.AppDataStore.setCurriculum(res)
+                res
+            } else {
+                com.amazecc.app.shared.state.AppDataStore.curriculum.value ?: res ?: CurriculumRes(success = false, message = "Empty response")
+            }
         } catch (e: Exception) {
-            CurriculumRes(success = false, message = e.message, error = e.toString())
+            com.amazecc.app.shared.state.AppDataStore.curriculum.value
+                ?: CurriculumRes(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -2182,16 +2207,19 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchPayments()
+                    ?: com.amazecc.app.shared.state.AppDataStore.payments.value
                     ?: PaymentsRes(success = false, error = "VTOP payments unavailable")
             } catch (e: Exception) {
-                PaymentsRes(success = false, error = e.message ?: e.toString())
+                com.amazecc.app.shared.state.AppDataStore.payments.value
+                    ?: PaymentsRes(success = false, error = e.message ?: e.toString())
             }
         }
         return try {
             // D-022: decode the whole finance response once with typed DTOs so receipts,
             // refunds, invoices and the USD ledger are never dropped by an ad-hoc projection.
             val finance = postAuthorized<FinanceResponse>("finance", mapOf("section" to "all"))
-                ?: return PaymentsRes(success = false, message = "Empty response")
+                ?: return com.amazecc.app.shared.state.AppDataStore.payments.value
+                    ?: PaymentsRes(success = false, message = "Empty response")
             val paymentsList = mutableListOf<PaymentItem>()
 
             if (finance.dues?.hasDues == true) {
@@ -2229,7 +2257,7 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
             }
 
             val balance = finance.wallet?.ledgerINR?.lastOrNull()?.bookBalanceAmount
-            PaymentsRes(
+            val paymentsRes = PaymentsRes(
                 success = true,
                 payments = paymentsList,
                 walletBalance = balance,
@@ -2240,8 +2268,11 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
                 message = if (finance.dues?.hasDues == false) finance.dues.message else null,
                 error = finance.error
             )
+            com.amazecc.app.shared.state.AppDataStore.setPayments(paymentsRes)
+            paymentsRes
         } catch (e: Exception) {
-            PaymentsRes(success = false, message = e.message, error = e.toString())
+            com.amazecc.app.shared.state.AppDataStore.payments.value
+                ?: PaymentsRes(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -2270,7 +2301,8 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
             if (saved != null) mapOf("libUsername" to saved.first, "libPassword" to saved.second) else emptyMap()
         }
         if (creds.isEmpty()) {
-            return LibraryRes(success = false, message = "Library login required", error = "NO_LIB_CREDS")
+            return com.amazecc.app.shared.state.AppDataStore.library.value?.takeIf { it.effectiveBooks.isNotEmpty() }
+                ?: LibraryRes(success = false, message = "Library login required", error = "NO_LIB_CREDS")
         }
         return try {
             val params = creds + ("section" to "library")
@@ -2278,14 +2310,16 @@ if (useMockData) return DemoData.get("payments", PaymentsRes.serializer()) ?: Pa
             // mounted. The library dues are nested under `library.books`, so lift them into the
             // flat `booksIssued` list the UI already renders.
             val res = postAuthorized<LibraryRes>("finance", params)
-                ?: LibraryRes(success = false, message = "Empty response")
+                ?: return com.amazecc.app.shared.state.AppDataStore.library.value
+                    ?: LibraryRes(success = false, message = "Empty response")
             val normalised = if (res.booksIssued.isEmpty() && res.libraryDues?.books?.isNotEmpty() == true) {
                 res.copy(booksIssued = res.libraryDues.booksIssued)
             } else res
             com.amazecc.app.shared.state.AppDataStore.setLibrary(normalised)
             normalised
         } catch (e: Exception) {
-            LibraryRes(success = false, message = e.message, error = e.toString())
+            com.amazecc.app.shared.state.AppDataStore.library.value
+                ?: LibraryRes(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -2353,24 +2387,28 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchTransport()
+                    ?: com.amazecc.app.shared.state.AppDataStore.transportData.value
                     ?: TransportDataRes(success = false, message = "VTOP transport unavailable")
             } catch (e: Exception) {
-                TransportDataRes(success = false, message = e.message, error = e.toString())
+                com.amazecc.app.shared.state.AppDataStore.transportData.value
+                    ?: TransportDataRes(success = false, message = e.message, error = e.toString())
             }
         }
         return try {
             val res = postAuthorized<TransportDataRes>("transport")
             // /api/transport can return HTTP 200 with hasRegistration=false and an
             // `error` field; that is a failure, not usable data.
-            if (res != null && res.success && res.error.isNullOrBlank()) res
-            else {
+            if (res != null && res.success && res.error.isNullOrBlank()) {
+                com.amazecc.app.shared.state.AppDataStore.setTransportData(res)
+                res
+            } else {
                 if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
                     try {
                         val local = com.amazecc.app.shared.vtop.VtopDataSource.fetchTransport()
                         if (local != null && local.success) return local
                     } catch (_: Exception) {}
                 }
-                res ?: TransportDataRes(success = false, message = "Empty response")
+                com.amazecc.app.shared.state.AppDataStore.transportData.value ?: res ?: TransportDataRes(success = false, message = "Empty response")
             }
         } catch (e: Exception) {
             if (com.amazecc.app.shared.vtop.vtopEngineSupported && com.amazecc.app.shared.vtop.VtopSession.hasSession) {
@@ -2379,7 +2417,8 @@ if (useMockData) return DemoData.get("libraryRenew", BasicRes.serializer()) ?: B
                     if (local != null && local.success) return local
                 } catch (_: Exception) {}
             }
-            TransportDataRes(success = false, message = e.message, error = e.toString())
+            com.amazecc.app.shared.state.AppDataStore.transportData.value
+                ?: TransportDataRes(success = false, message = e.message, error = e.toString())
         }
     }
 
@@ -2811,7 +2850,10 @@ if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes
         return ClubsRes(success = false, message = "Club directory is unavailable on the current API")
     }
 
+    private val imageByteCache = mutableMapOf<String, ByteArray>()
+
     suspend fun getImageBytes(url: String): ByteArray? {
+        imageByteCache[url]?.let { return it }
         return try {
             val response: HttpResponse = httpClient.get(url) {
                 val token = SessionManager.clubToken.value
@@ -2820,7 +2862,14 @@ if (useMockData) return DemoData.get("clubs", ClubsRes.serializer()) ?: ClubsRes
                 }
             }
             if (response.status == HttpStatusCode.OK) {
-                response.body<ByteArray>()
+                val bytes = response.body<ByteArray>()
+                if (bytes.isNotEmpty()) {
+                    if (imageByteCache.size > 200) {
+                        imageByteCache.keys.firstOrNull()?.let { imageByteCache.remove(it) }
+                    }
+                    imageByteCache[url] = bytes
+                }
+                bytes
             } else null
         } catch (e: Exception) {
             null
@@ -3174,12 +3223,25 @@ if (useMockData) return DemoData.get("circulars", CircularsRes.serializer()) ?: 
         if (vtopSource == com.amazecc.app.shared.vtop.VtopSource.LOCAL) {
             return try {
                 com.amazecc.app.shared.vtop.VtopDataSource.fetchCirculars()
+                    ?: com.amazecc.app.shared.state.AppDataStore.circulars.value
                     ?: CircularsRes(success = false, error = "VTOP circulars unavailable")
             } catch (e: Exception) {
-                CircularsRes(success = false, error = e.toString())
+                com.amazecc.app.shared.state.AppDataStore.circulars.value
+                    ?: CircularsRes(success = false, error = e.toString())
             }
         }
-        return postAuthorizedRemote<CircularsRes>("circulars") ?: CircularsRes(success = false, message = "Empty response")
+        return try {
+            val res = postAuthorizedRemote<CircularsRes>("circulars")
+            if (res != null && res.success) {
+                com.amazecc.app.shared.state.AppDataStore.setCirculars(res)
+                res
+            } else {
+                com.amazecc.app.shared.state.AppDataStore.circulars.value ?: res ?: CircularsRes(success = false, message = "Empty response")
+            }
+        } catch (e: Exception) {
+            com.amazecc.app.shared.state.AppDataStore.circulars.value
+                ?: CircularsRes(success = false, message = e.message, error = e.toString())
+        }
     }
 
     // ── Document / payment detail actions ──────────────────────────────────
@@ -3332,6 +3394,213 @@ if (useMockData) return DemoData.get("facultyScrape", FacultyScrapeRes.serialize
             }
         } catch (e: Exception) {
             FacultyScrapeRes(success = false, error = e.message)
+        }
+    }
+
+    data class VitfacCatalogEntry(
+        val id: String,
+        val employeeId: String,
+        val name: String,
+        val designation: String = "",
+        val dept: String = "",
+        val wPct: Int? = null,
+        val reviews: Int = 0,
+        val email: String = "",
+        val intercom: String = "",
+        val imageUrl: String? = null
+    )
+
+    private var cachedVitfacCatalog: List<VitfacCatalogEntry>? = null
+
+    fun getFacultyCdnUrl(employeeId: String?): String? {
+        val trimmed = employeeId?.trim().orEmpty()
+        if (trimmed.isBlank()) return null
+        return "https://cdn.amazecc.com/faculty/$trimmed.webp"
+    }
+
+    data class VitfacLoreTag(val text: String, val count: Int)
+    data class VitfacCourseStat(
+        val code: String,
+        val name: String = "",
+        val reviews: Int = 0,
+        val wPct: Int = 0,
+        val lecture: Double? = null,
+        val da: Double? = null,
+        val vibe: Double? = null,
+        val greenLore: List<VitfacLoreTag> = emptyList(),
+        val redLore: List<VitfacLoreTag> = emptyList()
+    )
+    data class VitfacProfileDetail(
+        val employeeId: String,
+        val b64Id: String = "",
+        val name: String,
+        val designation: String = "",
+        val dept: String = "",
+        val wPct: Int?,
+        val reviews: Int,
+        val wCount: Int = 0,
+        val lCount: Int = 0,
+        val lecture: Double? = null,
+        val da: Double? = null,
+        val vibe: Double? = null,
+        val greenLore: List<VitfacLoreTag> = emptyList(),
+        val redLore: List<VitfacLoreTag> = emptyList(),
+        val knownCourses: List<String> = emptyList(),
+        val courseStats: List<VitfacCourseStat> = emptyList(),
+        val globalReviews: Int? = null,
+        val globalWPct: Int? = null
+    )
+
+    private const val VITFAC_CATALOG_CACHE_KEY = "cache_vitfac_catalog_v1"
+
+    private fun parseVitfacCatalogJson(body: String): List<VitfacCatalogEntry> {
+        if (body.isBlank()) return emptyList()
+        return try {
+            val root = jsonConfig.parseToJsonElement(body)
+            val arr = when (root) {
+                is JsonArray -> root
+                is JsonObject -> {
+                    val dataEl = root["data"]
+                    when (dataEl) {
+                        is JsonArray -> dataEl
+                        is JsonObject -> (dataEl["faculty"] as? JsonArray) ?: JsonArray(emptyList())
+                        else -> (root["faculty"] as? JsonArray) ?: JsonArray(emptyList())
+                    }
+                }
+                else -> JsonArray(emptyList())
+            }
+            arr.mapNotNull { el ->
+                val obj = el as? JsonObject ?: return@mapNotNull null
+                fun str(key: String): String =
+                    (obj[key] as? JsonPrimitive)?.takeUnless { it.content == "null" && !it.isString }?.content?.trim().orEmpty()
+                val name = str("name")
+                if (name.isBlank()) return@mapNotNull null
+                val empId = str("employeeId")
+                val id = str("id").ifBlank { empId }
+                val rawImg = str("image_url").ifBlank { str("imageUrl") }.ifBlank { null }
+                val cdnImg = getFacultyCdnUrl(empId) ?: rawImg
+                VitfacCatalogEntry(
+                    id = id,
+                    employeeId = empId,
+                    name = name,
+                    designation = str("designation"),
+                    dept = str("dept"),
+                    wPct = str("wPct").toDoubleOrNull()?.toInt(),
+                    reviews = str("reviews").toIntOrNull() ?: 0,
+                    email = str("email"),
+                    intercom = str("intercom"),
+                    imageUrl = cdnImg
+                )
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getCachedVitfacCatalog(): List<VitfacCatalogEntry> {
+        cachedVitfacCatalog?.let { if (it.isNotEmpty()) return it }
+        val raw = SettingsManager.getString(VITFAC_CATALOG_CACHE_KEY, "")
+        val parsed = parseVitfacCatalogJson(raw)
+        if (parsed.isNotEmpty()) cachedVitfacCatalog = parsed
+        return parsed
+    }
+
+    suspend fun getVitfacCatalog(forceRefresh: Boolean = false): List<VitfacCatalogEntry> {
+        if (!forceRefresh) {
+            val cached = getCachedVitfacCatalog()
+            if (cached.isNotEmpty()) return cached
+        }
+        return try {
+            val response: HttpResponse = httpClient.get("https://cache.amazecc.com/faculty")
+            if (response.status != HttpStatusCode.OK) return getCachedVitfacCatalog()
+            val body = response.bodyAsText()
+            val parsed = parseVitfacCatalogJson(body)
+            if (parsed.isNotEmpty()) {
+                cachedVitfacCatalog = parsed
+                SettingsManager.setString(VITFAC_CATALOG_CACHE_KEY, body)
+            }
+            parsed
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            getCachedVitfacCatalog()
+        }
+    }
+
+    @OptIn(kotlin.io.encoding.ExperimentalEncodingApi::class)
+    suspend fun getVitfacProfile(employeeId: String): VitfacProfileDetail? {
+        val trimmed = employeeId.trim()
+        if (trimmed.isBlank()) return null
+        val b64 = kotlin.io.encoding.Base64.encode(trimmed.encodeToByteArray())
+        return try {
+            val response: HttpResponse = httpClient.get("https://cache.amazecc.com/profile/$b64")
+            if (response.status != HttpStatusCode.OK) return null
+            val root = jsonConfig.parseToJsonElement(response.bodyAsText()) as? JsonObject ?: return null
+            val data = root["data"] as? JsonObject ?: root
+            val prof = data["prof"] as? JsonObject ?: data
+            fun str(obj: JsonObject?, key: String): String =
+                (obj?.get(key) as? JsonPrimitive)?.takeUnless { it.content == "null" && !it.isString }?.content?.trim().orEmpty()
+            val metricsObj = prof["metrics"] as? JsonObject
+            val loreObj = prof["lore"] as? JsonObject
+            fun parseLore(loreObj: JsonObject?, key: String): List<VitfacLoreTag> {
+                val arr = loreObj?.get(key) as? JsonArray ?: return emptyList()
+                return arr.mapNotNull { item ->
+                    val o = item as? JsonObject ?: return@mapNotNull null
+                    val text = str(o, "text")
+                    if (text.isBlank()) return@mapNotNull null
+                    VitfacLoreTag(text = text, count = str(o, "count").toIntOrNull() ?: 1)
+                }
+            }
+            val courseStatsObj = data["courseStats"] as? JsonObject
+            val globalObj = courseStatsObj?.get("global") as? JsonObject
+            val globalMetrics = globalObj?.get("metrics") as? JsonObject ?: metricsObj
+            val globalLore = globalObj?.get("lore") as? JsonObject ?: loreObj
+
+            val perCourses = (courseStatsObj?.get("courses") as? JsonArray)?.mapNotNull { el ->
+                val cObj = el as? JsonObject ?: return@mapNotNull null
+                val code = str(cObj, "code")
+                if (code.isBlank()) return@mapNotNull null
+                val cm = cObj["metrics"] as? JsonObject
+                val cl = cObj["lore"] as? JsonObject
+                VitfacCourseStat(
+                    code = code,
+                    name = str(cObj, "name"),
+                    reviews = str(cObj, "reviews").toIntOrNull() ?: 0,
+                    wPct = str(cObj, "wPct").toDoubleOrNull()?.toInt() ?: 0,
+                    lecture = str(cm, "lecture").toDoubleOrNull(),
+                    da = str(cm, "da").toDoubleOrNull(),
+                    vibe = str(cm, "vibe").toDoubleOrNull(),
+                    greenLore = parseLore(cl, "green"),
+                    redLore = parseLore(cl, "red")
+                )
+            }.orEmpty()
+
+            val knownCourses = (prof["courses"] as? JsonArray)?.mapNotNull {
+                (it as? JsonPrimitive)?.content?.trim()?.takeIf { s -> s.isNotBlank() && s != "null" }
+            }.orEmpty()
+
+            VitfacProfileDetail(
+                employeeId = trimmed,
+                b64Id = str(prof, "id").ifBlank { b64 },
+                name = str(prof, "name"),
+                designation = str(prof, "designation"),
+                dept = str(prof, "dept"),
+                wPct = str(prof, "wPct").toDoubleOrNull()?.toInt(),
+                reviews = str(prof, "reviews").toIntOrNull() ?: 0,
+                wCount = str(prof, "wCount").toIntOrNull() ?: 0,
+                lCount = str(prof, "lCount").toIntOrNull() ?: 0,
+                lecture = str(globalMetrics, "lecture").toDoubleOrNull(),
+                da = str(globalMetrics, "da").toDoubleOrNull(),
+                vibe = str(globalMetrics, "vibe").toDoubleOrNull(),
+                greenLore = parseLore(globalLore, "green"),
+                redLore = parseLore(globalLore, "red"),
+                knownCourses = knownCourses,
+                courseStats = perCourses,
+                globalReviews = str(globalObj, "reviews").toIntOrNull(),
+                globalWPct = str(globalObj, "wPct").toDoubleOrNull()?.toInt()
+            )
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            null
         }
     }
 
@@ -3951,6 +4220,48 @@ if (useMockData) return DemoData.get("additionalLearning", ArrearResponse.serial
     suspend fun checkForUpdate(): GitHubRelease {
         val url = "https://api.github.com/repos/${UpdateConfig.GITHUB_OWNER}/${UpdateConfig.GITHUB_REPO}/releases/latest"
         return httpClient.get(url).body()
+    }
+
+    /**
+     * Pulls cohort statistics directly from the UniCC public backend API:
+     * `https://api-unicc.arya22.dev/api/attendance/marks?classId=$classId`
+     *
+     * Returns real class statistics: mean (out of 60.0), standard deviation, and student contributor count.
+     */
+    suspend fun fetchUniCcClassStats(classId: String): ClassStats? {
+        val id = classId.trim()
+        if (id.isBlank()) return null
+        return try {
+            val url = "https://api-unicc.arya22.dev/api/attendance/marks?classId=${id.encodeURLParameter()}"
+            val response: HttpResponse = httpClient.get(url)
+            if (response.status == HttpStatusCode.OK) {
+                val text = response.bodyAsText()
+                val dto = jsonConfig.decodeFromString<UniCcClassStatsDto>(text)
+                val mean = dto.mean
+                if (mean != null && mean.isFinite()) {
+                    val count = dto.count ?: 0
+                    val sd = dto.sd ?: dto.variance?.let { kotlin.math.sqrt(it) } ?: 0.0
+                    ClassStats(count = count, mean = mean, sd = sd, scale = 60.0)
+                } else null
+            } else null
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Batch concurrent fetch of cohort statistics from UniCC API for multiple class numbers.
+     */
+    suspend fun fetchUniCcClassStatsBatch(classIds: List<String>): Map<String, ClassStats> = coroutineScope {
+        val uniqueIds = classIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (uniqueIds.isEmpty()) return@coroutineScope emptyMap()
+        val deferred = uniqueIds.map { id ->
+            async { id to fetchUniCcClassStats(id) }
+        }
+        deferred.mapNotNull { d ->
+            val (id, stats) = d.await()
+            if (stats != null) id to stats else null
+        }.toMap()
     }
 
     const val SESSION_MAX_AGE_MS = 5 * 60_000L

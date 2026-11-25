@@ -23,6 +23,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,6 +36,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.data.FfcsReportData
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyAction
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyMember
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyState
@@ -48,109 +50,82 @@ import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
 import com.amazecc.app.shared.utils.FacultyFreeSlotsUtil
 import com.amazecc.app.shared.utils.FacultyFreeSlotsResult
+import com.amazecc.app.shared.utils.FacultyUtils
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
 /**
- * D-163: stateful host that brings the real web faculty directory into the M3E screen.
- *
- * All fetching (schools, per-school scrape, optional directory enrichment and the bundled
- * FFCS schedule derivation) happens off the UI thread. The only values handed to the
- * stateless [M3EFacultyScreen] are immutable snapshots in [M3EFacultyState]; no faculty,
- * schedule slot or presence claim is ever fabricated. In particular, real data never sets
- * `isCurrentlyTeaching` / `currentSlotInfo`, so the screen shows no "in class" claim.
+ * Driven from the Faculty Schedule Tab (`FacultyScheduleTab.tsx` in ../AmazeCC):
+ * - Builds faculty groups directly from the bundled FFCS report ([FfcsReportData.CSV_DATA]),
+ *   so the directory always loads instantaneously without fragile VTOP scraping.
+ * - Hoists the student's own course faculties (`AppState.courses`) to the top.
+ * - Enriches each faculty with cached vitfac reviews, employee IDs, and CDN avatars
+ *   (`https://cache.amazecc.com/faculty` + `https://cdn.amazecc.com/faculty/{id}.webp`).
+ * - Tapping a faculty opens [M3EFacultyScheduleSheet] with their full weekly schedule.
  */
 @Composable
 fun M3EFacultyLiveHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val clipboard = LocalClipboardManager.current
+    val domain by AppState.domain.collectAsState()
+    val enrolledCourses = remember(domain) {
+        domain.academics.semesters.values.flatMap { it.courses.values }
+    }
 
-    var schools by remember { mutableStateOf<List<FacultySchool>>(emptyList()) }
     var facultyList by remember { mutableStateOf<List<M3EFacultyMember>>(emptyList()) }
+    var availableSchools by remember { mutableStateOf<List<String>>(listOf("All")) }
     var isLoading by remember { mutableStateOf(true) }
     var loadError by remember { mutableStateOf<String?>(null) }
-    var ui by remember { mutableStateOf(FacultyLiveUiState()) }
-    var attemptedIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var ui by remember { mutableStateOf(FacultyLiveUiState(selectedSchool = "All")) }
 
-    // 1. Mount / refresh: real school list only. A failed payload is surfaced, never replaced
-    //    with the hardcoded school names from M3EFacultyState's default.
-    LaunchedEffect(ui.refreshTick) {
+    // 1. Build faculty directory from bundled FFCS report + enrolled courses + vitfac cache.
+    LaunchedEffect(ui.refreshTick, enrolledCourses) {
         isLoading = true
         loadError = null
-        attemptedIds = emptySet()
         try {
-            val res = withContext(Dispatchers.Default) { AmazeClient.getFacultySchools() }
-            if (!res.success || res.schools.isEmpty()) {
-                schools = emptyList()
-                facultyList = emptyList()
-                loadError = res.error ?: "Failed to load faculty schools"
-                isLoading = false
-            } else {
-                schools = res.schools
-                val labels = mapFacultySchools(res.schools)
-                if (ui.selectedSchool !in labels || ui.selectedSchool == "All") {
-                    labels.firstOrNull { it != "All" }?.let { ui = ui.copy(selectedSchool = it) }
+            val myFacultyNames = buildSet {
+                enrolledCourses.forEach { c ->
+                    c.faculty?.trim()?.takeIf { it.isNotBlank() }?.let(::add)
                 }
             }
-        } catch (e: Exception) {
-            schools = emptyList()
-            facultyList = emptyList()
-            loadError = e.message ?: "Failed to load faculty schools"
-            isLoading = false
-        }
-    }
 
-    // 2. Real scrape for the selected school (or every real school when "All" is chosen).
-    LaunchedEffect(ui.refreshTick, ui.selectedSchool, schools) {
-        if (schools.isEmpty()) return@LaunchedEffect
-        val targets = if (ui.selectedSchool == "All") {
-            schools.map { it.id }
-        } else {
-            schools.filter { it.school_name == ui.selectedSchool }.map { it.id }
-        }
-        if (targets.isEmpty()) {
-            facultyList = emptyList()
-            loadError = "No schools available for this selection"
-            isLoading = false
-            return@LaunchedEffect
-        }
-        isLoading = true
-        val merged = mutableListOf<M3EFacultyMember>()
-        val errors = mutableListOf<String>()
-        try {
-            withContext(Dispatchers.Default) {
-                for (id in targets) {
-                    val res = AmazeClient.postFacultyScrape(id)
-                    if (res.success) {
-                        val label = schools.firstOrNull { it.id == id }?.school_name ?: id
-                        merged.addAll(mapFacultyProfiles(res.faculties, label))
-                    } else {
-                        res.error?.takeIf { it.isNotBlank() }?.let(errors::add)
-                    }
-                }
+            // Build base groups from FfcsReportData.CSV_DATA off the main thread,
+            // and immediately apply any disk-cached vitfac catalog so photos & reviews show on frame 1.
+            val (initialMembers, initialSchools) = withContext(Dispatchers.Default) {
+                val base = buildFacultyDirectoryFromReport(myFacultyNames)
+                val cachedCatalog = AmazeClient.getCachedVitfacCatalog()
+                val enriched = if (cachedCatalog.isNotEmpty()) enrichDirectoryWithVitfac(base, cachedCatalog) else base
+                val schools = enriched.map { it.school }.filter { it.isNotBlank() && it != "All" }.distinct().sorted()
+                enriched to schools
             }
-            facultyList = merged
-            loadError = errors.distinct().joinToString(" · ").ifBlank { null }
-        } catch (e: Exception) {
-            facultyList = emptyList()
-            loadError = e.message ?: "Failed to load the faculty directory"
-        } finally {
+            facultyList = initialMembers
+            if (initialSchools.isNotEmpty()) availableSchools = listOf("All") + initialSchools
             isLoading = false
-        }
-    }
 
-    // 3. Optional enrichment of the expanded member from the public directory. The real
-    //    scraped profile (and its already-derived schedule) stays in place if lookup fails.
-    LaunchedEffect(ui.expandedFacultyId, facultyList, ui.refreshTick) {
-        val id = ui.expandedFacultyId ?: return@LaunchedEffect
-        val member = facultyList.firstOrNull { it.id == id } ?: return@LaunchedEffect
-        if (member.id.isBlank() || member.id in attemptedIds) return@LaunchedEffect
-        attemptedIds = attemptedIds + member.id
-        val detail = withContext(Dispatchers.Default) { AmazeClient.getFacultyProfile(member.id) }
-        if (detail != null) {
-            val enriched = enrichFacultyMember(member, detail)
-            facultyList = facultyList.map { if (it.id == member.id) enriched else it }
+            // Refresh vitfac catalog in background
+            val catalog = withContext(Dispatchers.Default) {
+                AmazeClient.getVitfacCatalog(forceRefresh = ui.refreshTick > 0 || AmazeClient.getCachedVitfacCatalog().isEmpty())
+            }
+            if (catalog.isNotEmpty()) {
+                val enriched = withContext(Dispatchers.Default) {
+                    enrichDirectoryWithVitfac(initialMembers, catalog)
+                }
+                facultyList = enriched
+                val schoolsList = enriched.map { it.school }
+                    .filter { it.isNotBlank() && it != "All" }
+                    .distinct()
+                    .sorted()
+                if (schoolsList.isNotEmpty()) availableSchools = listOf("All") + schoolsList
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (facultyList.isEmpty()) {
+                loadError = e.message ?: "Failed to load the faculty directory"
+            }
+            isLoading = false
         }
     }
 
@@ -171,7 +146,6 @@ fun M3EFacultyLiveHost(modifier: Modifier = Modifier) {
         ui = applyFacultyLiveAction(ui, action, facultyList, copySucceeded)
     }
 
-    val availableSchools = remember(schools) { mapFacultySchools(schools) }
     val filtered = remember(facultyList, ui.searchQuery, ui.selectedSchool) {
         filterFacultyMembers(facultyList, ui.searchQuery, ui.selectedSchool)
     }
@@ -425,7 +399,7 @@ internal fun filterFacultyMembers(
     return members.filter { member ->
         val schoolOk = school == "All" || member.school.equals(school, ignoreCase = true)
         val queryOk = q.isBlank() ||
-            listOf(member.name, member.email, member.designation, member.school, member.cabin)
+            listOf(member.name, member.email, member.designation, member.school, member.cabin, member.employeeId.orEmpty())
                 .any { it.contains(q, ignoreCase = true) } ||
             member.coursesTaught.any { it.contains(q, ignoreCase = true) }
         schoolOk && queryOk
@@ -520,6 +494,122 @@ internal fun buildFacultyWeeklyGrid(schedule: FacultyFreeSlotsResult): List<Facu
                 timeRange = period,
                 courseCode = classHere?.courseCode,
                 isFree = classHere == null && period in dayFree
+            )
+        }
+    }
+}
+
+private val csvIdRegex = Regex("""\(([^)]+)\)""")
+
+private fun facultyGroupKey(name: String): String {
+    val norm = FacultyUtils.normalizeName(name.replace(csvIdRegex, " "))
+    return norm.split(" ").filter { it.isNotBlank() }.sorted().joinToString(" ")
+}
+
+private fun facultyNamesMatch(a: String, b: String): Boolean {
+    val ka = facultyGroupKey(a)
+    val kb = facultyGroupKey(b)
+    if (ka.isBlank() || kb.isBlank()) return false
+    if (ka == kb) return true
+    val ta = ka.split(" ").toSet()
+    val tb = kb.split(" ").toSet()
+    val (smaller, larger) = if (ta.size <= tb.size) ta to tb else tb to ta
+    return smaller.size >= 2 && larger.containsAll(smaller)
+}
+
+/**
+ * Builds the faculty directory from [FfcsReportData.CSV_DATA] (matching `FacultyScheduleTab.tsx`),
+ * hoisting [myFacultyNames] to the top (`isMyFaculty = true`).
+ */
+internal fun buildFacultyDirectoryFromReport(myFacultyNames: Set<String>): List<M3EFacultyMember> {
+    data class Acc(
+        val key: String,
+        val canonical: String,
+        val courses: MutableSet<String> = linkedSetOf(),
+        val venues: MutableSet<String> = linkedSetOf()
+    )
+
+    val groups = linkedMapOf<String, Acc>()
+    val lines = FfcsReportData.CSV_DATA.replace("\r", "").split("\n").drop(1)
+    for (line in lines) {
+        if (line.isBlank()) continue
+        var inQuotes = false
+        val cols = mutableListOf<String>()
+        val cur = StringBuilder()
+        for (ch in line) {
+            when {
+                ch == '"' -> inQuotes = !inQuotes
+                ch == ',' && !inQuotes -> {
+                    cols.add(cur.toString().trim())
+                    cur.clear()
+                }
+                else -> cur.append(ch)
+            }
+        }
+        cols.add(cur.toString().trim())
+        if (cols.size < 6) continue
+
+        val code = cols[0].trim()
+        val facultyRaw = cols[5].trim()
+        val venue = cols.getOrNull(6)?.trim().orEmpty()
+        if (facultyRaw.isBlank() || facultyRaw.equals("NIL", ignoreCase = true)) continue
+
+        val cleanName = facultyRaw.replace(csvIdRegex, "").trim()
+        val key = facultyGroupKey(cleanName).ifBlank { cleanName.uppercase() }
+        val acc = groups.getOrPut(key) { Acc(key = key, canonical = cleanName) }
+        if (code.isNotBlank()) acc.courses.add(code)
+        if (venue.isNotBlank() && !venue.equals("NIL", ignoreCase = true)) acc.venues.add(venue)
+    }
+
+    val members = groups.values.map { acc ->
+        val isMine = myFacultyNames.any { myName -> facultyNamesMatch(myName, acc.canonical) }
+        M3EFacultyMember(
+            id = acc.key,
+            name = acc.canonical,
+            designation = "",
+            school = "All",
+            cabin = "",
+            email = "",
+            intercom = null,
+            rating = null,
+            coursesTaught = acc.courses.toList(),
+            isMyFaculty = isMine,
+            timetable = emptyList(),
+            isCurrentlyTeaching = false,
+            currentSlotInfo = null
+        )
+    }
+
+    return members.sortedWith(compareByDescending<M3EFacultyMember> { it.isMyFaculty }.thenBy { it.name })
+}
+
+/** Enriches report-derived [M3EFacultyMember]s with cached vitfac catalog data (avatar, reviews, dept). */
+internal fun enrichDirectoryWithVitfac(
+    members: List<M3EFacultyMember>,
+    catalog: List<AmazeClient.VitfacCatalogEntry>
+): List<M3EFacultyMember> {
+    if (catalog.isEmpty()) return members
+    val byGroupKey = catalog.associateBy { facultyGroupKey(it.name) }
+    val byEmpId = catalog.filter { it.employeeId.isNotBlank() }.associateBy { it.employeeId }
+
+    return members.map { m ->
+        val match = m.employeeId?.let { byEmpId[it] }
+            ?: byGroupKey[facultyGroupKey(m.name)]
+            ?: catalog.firstOrNull { facultyNamesMatch(it.name, m.name) }
+        if (match == null) {
+            m
+        } else {
+            val empId = match.employeeId.takeIf { it.isNotBlank() } ?: m.employeeId
+            m.copy(
+                employeeId = empId,
+                imageUrl = match.imageUrl ?: AmazeClient.getFacultyCdnUrl(empId) ?: m.imageUrl,
+                wPct = match.wPct ?: m.wPct,
+                reviewCount = if (match.reviews > 0) match.reviews else m.reviewCount,
+                rating = match.wPct?.let { it / 20.0 } ?: m.rating,
+                designation = match.designation.takeIf { it.isNotBlank() } ?: m.designation,
+                school = match.dept.takeIf { it.isNotBlank() } ?: m.school,
+                email = match.email.takeIf { it.isNotBlank() } ?: m.email,
+                intercom = match.intercom.takeIf { it.isNotBlank() } ?: m.intercom
             )
         }
     }

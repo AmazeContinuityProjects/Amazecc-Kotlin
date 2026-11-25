@@ -1,6 +1,7 @@
 package com.amazecc.app.shared.ui.screens.m3e
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,22 +26,32 @@ import androidx.compose.material.icons.rounded.QuestionAnswer
 import androidx.compose.material.icons.rounded.TaskAlt
 import androidx.compose.material.icons.rounded.Book
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Email
+import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.MeetingRoom
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.Science
 import androidx.compose.material.icons.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,7 +60,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.max
+import kotlin.math.min
 import com.amazecc.app.shared.domain.EmbeddedCourseHalf
+import com.amazecc.app.shared.domain.EmbeddedLinkCode
 import com.amazecc.app.shared.domain.overhaul.CourseDetailTab
 import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
@@ -186,7 +200,8 @@ fun M3ECourseDetailScreen(
                                     state, onDownload = { onAction(M3ECourseDetailAction.DownloadSyllabus) }
                                 )
                                 CourseDetailTab.PREDICTOR -> CoursePredictorSection(
-                                    state, onSelectGrade = { onAction(M3ECourseDetailAction.SetTargetGrade(it)) }
+                                    state = state,
+                                    onAction = onAction
                                 )
                             }
                         }
@@ -808,50 +823,165 @@ private fun CourseMarksSection(state: M3ECourseDetailState) {
         }
 
         // Assessments List
-        Text(
-            text = "Assessments Breakdown",
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = colors.onSurface
-        )
-
-        if (state.assessments.isEmpty()) {
+        if (state.components.size > 1) {
             Text(
-                text = "No assessments released yet.",
-                fontSize = 13.sp,
-                color = colors.onSurfaceVariant
+                text = "Assessments Breakdown by Component",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = colors.onSurface
             )
-        } else {
-            state.assessments.forEach { assessment ->
-                M3ESurfaceCard(
-                    containerLevel = SurfaceContainerLevel.LOW,
-                    modifier = Modifier.fillMaxWidth()
+
+            state.components.forEach { component ->
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    // Component Header with Title + Credits and Subtotal
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Text(
-                                text = assessment.title,
+                                text = component.componentTitle,
                                 fontSize = 13.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = colors.onSurface
+                                fontWeight = FontWeight.Bold,
+                                color = colors.primary
                             )
-                            Text(
-                                text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
-                                fontSize = 11.sp,
-                                color = colors.onSurfaceVariant
-                            )
+                            component.credits?.let { cr ->
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            colors.surfaceContainerLow,
+                                            RoundedCornerShape(4.dp)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "${if (cr % 1.0 == 0.0) cr.toInt() else cr} Cr",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+                            }
                         }
-
                         Text(
-                            text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
-                            fontSize = 14.sp,
+                            text = "${component.scoredMarks.toFixed(2)} / ${component.maxMarks.toFixed(2)}",
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = colors.primary
                         )
+                    }
+
+                    if (component.assessments.isEmpty()) {
+                        Text(
+                            text = "No assessments published yet for this component.",
+                            fontSize = 12.sp,
+                            color = colors.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 4.dp)
+                        )
+                    } else {
+                        component.assessments.forEach { assessment ->
+                            M3ESurfaceCard(
+                                containerLevel = SurfaceContainerLevel.LOW,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(
+                                            text = assessment.title,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = colors.onSurface
+                                        )
+                                        Text(
+                                            text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
+                                            fontSize = 11.sp,
+                                            color = colors.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.primary
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Assessments Breakdown",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onSurface
+                )
+                if (state.internalMax > 0.0) {
+                    Text(
+                        text = "Total: ${state.internalScored.toFixed(2)} / ${state.internalMax.toFixed(2)}",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.primary
+                    )
+                }
+            }
+
+            if (state.assessments.isEmpty()) {
+                Text(
+                    text = "No assessments released yet.",
+                    fontSize = 13.sp,
+                    color = colors.onSurfaceVariant
+                )
+            } else {
+                state.assessments.forEach { assessment ->
+                    M3ESurfaceCard(
+                        containerLevel = SurfaceContainerLevel.LOW,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = assessment.title,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = colors.onSurface
+                                )
+                                Text(
+                                    text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
+                                    fontSize = 11.sp,
+                                    color = colors.onSurfaceVariant
+                                )
+                            }
+
+                            Text(
+                                text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.primary
+                            )
+                        }
                     }
                 }
             }
@@ -951,16 +1081,291 @@ private fun CourseSyllabusSection(
 }
 
 @Composable
-private fun CoursePredictorSection(
+internal fun CoursePredictorSection(
     state: M3ECourseDetailState,
-    onSelectGrade: (String) -> Unit
+    onAction: (M3ECourseDetailAction) -> Unit
 ) {
     val colors = M3ETheme.colors
     val grades = listOf("S", "A", "B", "C", "D")
 
+    val theoryHalf = state.halves.firstOrNull { it.half == "T" || !EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+    val labHalf = state.halves.firstOrNull { it.half == "L" || EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+    val theoryCredits = theoryHalf?.credits?.toDoubleOrNull() ?: 3.0
+    val labCredits = labHalf?.credits?.toDoubleOrNull() ?: 1.0
+
+    var editingAssessment by remember { mutableStateOf<M3EAssessmentItem?>(null) }
+    var editingLabFat by remember { mutableStateOf(false) }
+
+    val solver = remember(state.targetGrade, state.assessments, state.labFatMark, state.classStats) {
+        M3EPredictorDerivation.solveCourseFat(
+            targetGrade = state.targetGrade,
+            assessments = state.assessments,
+            theoryCredits = theoryCredits,
+            labCredits = labCredits,
+            labFatScored = state.labFatMark,
+            classStats = state.classStats,
+            courseType = state.courseType
+        )
+    }
+
+    val gradeLadderNeeds = remember(state.assessments, state.labFatMark, state.classStats) {
+        grades.map { g ->
+            val res = M3EPredictorDerivation.solveCourseFat(
+                targetGrade = g,
+                assessments = state.assessments,
+                theoryCredits = theoryCredits,
+                labCredits = labCredits,
+                labFatScored = state.labFatMark,
+                classStats = state.classStats,
+                courseType = state.courseType
+            )
+            g to res
+        }
+    }
+
+    val hasSimulations = state.simulatedAssessments.isNotEmpty() || state.labFatMark != null
+
+    val metrics = remember(state.assessments, theoryCredits, labCredits, state.classStats, state.courseType) {
+        M3EPredictorDerivation.calculateCoursePredictionMetrics(
+            assessments = state.assessments,
+            theoryCredits = theoryCredits,
+            labCredits = labCredits,
+            classStats = state.classStats,
+            courseSystem = null,
+            courseType = state.courseType
+        )
+    }
+
+    val isCurved = state.classStats != null && state.classStats.count >= 5 &&
+        com.amazecc.app.shared.domain.isRelativeGrading("ACE", state.courseType)
+
+    val gradeCutoffs = remember(state.classStats, state.courseType) {
+        listOf("S", "A", "B", "C", "D", "E").map { g ->
+            val fallback = when (g) {
+                "S" -> 90.0; "A" -> 80.0; "B" -> 70.0; "C" -> 60.0; "D" -> 55.0; else -> 50.0
+            }
+            g to (M3EPredictorDerivation.cutoffFor(g, state.classStats, null, state.courseType) ?: fallback)
+        }
+    }
+
+    fun gradeColor(grade: String?) = when (M3EPredictorDerivation.toneForGrade(grade)) {
+        M3ECardTone.GOOD -> colors.success
+        M3ECardTone.WARNING -> colors.warning
+        M3ECardTone.CRITICAL -> colors.error
+        M3ECardTone.NEUTRAL -> colors.primary
+    }
+
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        // Reset simulations banner
+        if (hasSimulations) {
+            M3ESurfaceCard(
+                containerLevel = SurfaceContainerLevel.LOW,
+                cornerRadius = 12.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Edit,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "What-if simulation active: ${state.simulatedAssessments.size + (if (state.labFatMark != null) 1 else 0)} marks modified",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.primary
+                        )
+                    }
+                    TextButton(onClick = { onAction(M3ECourseDetailAction.ResetSimulations) }) {
+                        Icon(Icons.Rounded.RestartAlt, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Reset", fontSize = 12.sp)
+                    }
+                }
+            }
+        }
+
+        // 0. Headline Stat Pair: Predicted Grade/Mark + Maximisable Grade/Mark
+        val scoredPct = metrics.currentScoredScaled.coerceIn(0.0, 100.0)
+        val lostPct = metrics.pointsLostScaled.coerceIn(0.0, 100.0 - scoredPct)
+        val pendingPct = (100.0 - scoredPct - lostPct).coerceIn(0.0, 100.0)
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Left: Predicted Grade & Pace Mark
+            M3ESurfaceCard(
+                containerLevel = SurfaceContainerLevel.HIGH,
+                cornerRadius = 18.dp,
+                modifier = Modifier.weight(1f)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "PREDICTED",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurfaceVariant,
+                            letterSpacing = 0.8.sp
+                        )
+                        if (isCurved) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(colors.primaryContainer)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "Curved",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.onPrimaryContainer
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = metrics.optimalGrade ?: "—",
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Black,
+                        color = gradeColor(metrics.optimalGrade)
+                    )
+                    Text(
+                        text = metrics.pacePercentage?.let {
+                            "${it.toFixed(1)}% pace · ${pendingPct.toFixed(1)} pending"
+                        } ?: "No marks entered",
+                        fontSize = 11.sp,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Right: Maximisable Grade & Max Mark
+            M3ESurfaceCard(
+                containerLevel = SurfaceContainerLevel.HIGH,
+                cornerRadius = 18.dp,
+                modifier = Modifier.weight(1f)
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "MAXIMISABLE",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onSurfaceVariant,
+                        letterSpacing = 0.8.sp
+                    )
+                    Text(
+                        text = metrics.maximisableGrade,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.Black,
+                        color = gradeColor(metrics.maximisableGrade)
+                    )
+                    Text(
+                        text = "Max ${metrics.maxPossibleScaled.toFixed(1)} / 100 · -${metrics.pointsLostScaled.toFixed(1)} lost",
+                        fontSize = 11.sp,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+            }
+        }
+
+        // Honesty line
+        Row(
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(horizontal = 2.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Warning,
+                contentDescription = null,
+                tint = colors.warning,
+                modifier = Modifier.size(14.dp).padding(top = 2.dp)
+            )
+            Text(
+                text = "Just a prediction. Based on marks entered, not an official result.",
+                fontSize = 11.sp,
+                color = colors.warning,
+                fontWeight = FontWeight.Medium
+            )
+        }
+
+        // Segmented Progress Bar (Locked / Pending / Lost)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Locked ${scoredPct.toFixed(1)}%",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.primary
+                )
+                Text(
+                    text = "Pending ${pendingPct.toFixed(1)}%",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.tertiary
+                )
+                Text(
+                    text = "Lost ${lostPct.toFixed(1)}%",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.error
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(colors.surfaceContainerHighest)
+            ) {
+                if (scoredPct > 0.0) {
+                    Box(
+                        modifier = Modifier
+                            .weight(scoredPct.toFloat().coerceAtLeast(0.01f))
+                            .height(10.dp)
+                            .background(colors.primary)
+                    )
+                }
+                if (pendingPct > 0.0) {
+                    Box(
+                        modifier = Modifier
+                            .weight(pendingPct.toFloat().coerceAtLeast(0.01f))
+                            .height(10.dp)
+                            .background(colors.tertiary.copy(alpha = 0.7f))
+                    )
+                }
+                if (lostPct > 0.0) {
+                    Box(
+                        modifier = Modifier
+                            .weight(lostPct.toFloat().coerceAtLeast(0.01f))
+                            .height(10.dp)
+                            .background(colors.error)
+                    )
+                }
+            }
+        }
+
+        // 1. Target Grade & FAT Solver
         Text(
-            text = "Select Desired Target Grade",
+            text = "Target Grade & FAT Solver",
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             color = colors.onSurface
@@ -969,47 +1374,600 @@ private fun CoursePredictorSection(
         M3EConnectedButtonGroup(
             items = grades,
             selectedItem = state.targetGrade,
-            onItemSelected = onSelectGrade
+            onItemSelected = { onAction(M3ECourseDetailAction.SetTargetGrade(it)) }
         )
 
         M3ESurfaceCard(
             containerLevel = SurfaceContainerLevel.HIGH,
-            cornerRadius = 24.dp,
+            cornerRadius = 20.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = "Required Final Exam (FAT) Score",
-                    fontSize = 13.sp,
-                    color = colors.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (state.assessments.none { !it.component.equals("Lab", ignoreCase = true) })
+                            "Required in Lab Final Exam (FAT):"
+                        else
+                            "Required in Theory Final Exam (FAT):",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colors.onSurfaceVariant
+                    )
 
+                    val feasibilityToneColor = when (solver.feasibility) {
+                        "secured" -> colors.success
+                        "comfortable" -> colors.primary
+                        "achievable" -> colors.primary
+                        "tough" -> colors.warning
+                        else -> colors.error
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(feasibilityToneColor.copy(alpha = 0.15f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text = solver.feasibilityLabel,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = feasibilityToneColor
+                        )
+                    }
+                }
+
+                val activeFatMax = if (state.assessments.none { !it.component.equals("Lab", ignoreCase = true) }) 50 else 100
                 Text(
-                    text = state.requiredFinalScore?.let { "${it.toFixed(2)} / 100" } ?: "Not available",
-                    fontSize = 28.sp,
+                    text = if (solver.feasibility == "impossible") {
+                        "Out of reach"
+                    } else if (solver.feasibility == "secured") {
+                        "0.0 / $activeFatMax"
+                    } else {
+                        "${solver.requiredFatRaw.toFixed(1)} / $activeFatMax"
+                    },
+                    fontSize = 32.sp,
                     fontWeight = FontWeight.Black,
                     color = colors.primary
                 )
 
                 Text(
-                    text = when {
-                        state.internalMax <= 0.0 ->
-                            "Internal marks are not published for this course."
-                        state.requiredFinalScore == null ->
-                            "Could not compute a requirement for grade ${state.targetGrade} from the available data."
-                        else ->
-                            "Based on current internals (${state.internalScored.toFixed(2)}/${state.internalMax.toFixed(2)}) for target grade ${state.targetGrade}."
-                    },
+                    text = solver.feasibilityMessage,
+                    fontSize = 12.sp,
+                    color = colors.onSurfaceVariant
+                )
+
+                if (state.labFatMark != null) {
+                    Text(
+                        text = "Includes simulated Lab FAT (${state.labFatMark.toFixed(1)} / 50.0).",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.primary
+                    )
+                }
+
+                Text(
+                    text = "VIT Regulation: Minimum 40% in Theory FAT alone required to pass the course (§9.4 a).",
                     fontSize = 11.sp,
                     color = colors.onSurfaceVariant
+                )
+
+                // Quick table for all grades
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    gradeLadderNeeds.forEach { (g, req) ->
+                        val isSelected = g == state.targetGrade
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) colors.primaryContainer else colors.surfaceContainerHighest)
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = g,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) colors.onPrimaryContainer else colors.onSurface
+                                )
+                                Text(
+                                    text = if (req.feasibility == "impossible") "—" else "${req.requiredFatRaw.toFixed(0)}",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = if (isSelected) colors.onPrimaryContainer else colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. UniCC Class Cohort Statistics & Grade Boundaries Card
+        M3ESurfaceCard(
+            containerLevel = SurfaceContainerLevel.LOW,
+            cornerRadius = 16.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Insights,
+                            contentDescription = null,
+                            tint = colors.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = "Class Cohort Statistics",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(colors.primaryContainer)
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = if (isCurved) "Curved · UniCC" else "UniCC API",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onPrimaryContainer
+                        )
+                    }
+                }
+
+                if (state.classStats != null && state.classStats.count > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text("Class Mean", fontSize = 11.sp, color = colors.onSurfaceVariant)
+                            Text(
+                                "${state.classStats.mean.toFixed(2)} / ${state.classStats.scale.toFixed(0)}",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.onSurface
+                            )
+                        }
+                        Column {
+                            Text("Std Dev (σ)", fontSize = 11.sp, color = colors.onSurfaceVariant)
+                            Text(
+                                state.classStats.sd.toFixed(2),
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.onSurface
+                            )
+                        }
+                        Column {
+                            Text("Datapoints", fontSize = 11.sp, color = colors.onSurfaceVariant)
+                            Text(
+                                "${state.classStats.count} students",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.onSurface
+                            )
+                        }
+                    }
+
+                    val diff = state.internalScored - state.classStats.mean
+                    val isAbove = diff >= 0
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(colors.surfaceContainerHigh)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = if (isAbove) {
+                                "+${diff.toFixed(2)} marks above class mean"
+                            } else {
+                                "${diff.toFixed(2)} marks below class mean"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isAbove) colors.success else colors.error
+                        )
+                    }
+
+                    if (state.classStats.count in 1..30) {
+                        Text(
+                            text = "⚠️ Low data sample (${state.classStats.count} classmates). Grade cutoffs and predictions are experimental.",
+                            fontSize = 11.sp,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "Class cohort data not yet synced on UniCC for this class. Falling back to the VIT standard absolute grading ladder.",
+                        fontSize = 12.sp,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+
+                // Grade Boundaries / Predicted Grade Cutoffs
+                Text(
+                    text = "Predicted Grade Cutoffs (Total / 100)",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colors.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    gradeCutoffs.forEach { (g, cutoff) ->
+                        val isPredicted = g == metrics.optimalGrade
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isPredicted) colors.primaryContainer else colors.surfaceContainerHigh)
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = g,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isPredicted) colors.onPrimaryContainer else gradeColor(g)
+                                )
+                                Text(
+                                    text = "≥${cutoff.toFixed(0)}",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isPredicted) colors.onPrimaryContainer else colors.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. Assessment Regimen & What-If Mark Simulator
+        Text(
+            text = "Assessments & What-If Simulation",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = colors.onSurface
+        )
+
+        Text(
+            text = "Tap on any assessment to edit or simulate its score and see the FAT requirement recalculate live.",
+            fontSize = 12.sp,
+            color = colors.onSurfaceVariant
+        )
+
+        if (state.components.size > 1) {
+            state.components.forEach { comp ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = comp.componentTitle,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.primary
+                        )
+                        Text(
+                            text = "${comp.scoredMarks.toFixed(2)} / ${comp.maxMarks.toFixed(2)}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurfaceVariant
+                        )
+                    }
+
+                    comp.assessments.forEach { asm ->
+                        M3EAssessmentSimulatorCard(
+                            assessment = asm,
+                            isSimulated = state.simulatedAssessments.containsKey(asm.title),
+                            onEdit = { editingAssessment = asm }
+                        )
+                    }
+
+                    // Lab FAT simulation card for ELA component (fallback if Lab FAT not already in assessments)
+                    if (comp.componentCode == "ELA" && comp.assessments.none {
+                        it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true)
+                    }) {
+                        M3ESurfaceCard(
+                            containerLevel = SurfaceContainerLevel.LOW,
+                            cornerRadius = 10.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = "Lab Final Assessment (Lab FAT)",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = colors.onSurface
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(4.dp))
+                                                .background(colors.primaryContainer)
+                                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                                        ) {
+                                            Text(
+                                                text = if (state.labFatMark != null) "Simulated" else "FAT",
+                                                fontSize = 9.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = colors.onPrimaryContainer
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = "Weightage: 40.00% · Max: 50.0",
+                                        fontSize = 11.sp,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = state.labFatMark?.let { "${it.toFixed(1)} / 50.0" } ?: "Not set",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (state.labFatMark != null) colors.primary else colors.onSurfaceVariant
+                                    )
+                                    IconButton(
+                                        onClick = { editingLabFat = true },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Edit,
+                                            contentDescription = "Edit Lab FAT",
+                                            tint = colors.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            state.assessments.forEach { asm ->
+                M3EAssessmentSimulatorCard(
+                    assessment = asm,
+                    isSimulated = state.simulatedAssessments.containsKey(asm.title),
+                    onEdit = { editingAssessment = asm }
                 )
             }
         }
     }
+
+    // Mark edit dialog
+    editingAssessment?.let { asm ->
+        M3EMarkEditDialog(
+            title = asm.title,
+            maxMarks = asm.maxMarks,
+            currentScore = asm.scoredMarks,
+            onDismiss = { editingAssessment = null },
+            onSave = { newScore ->
+                onAction(M3ECourseDetailAction.SetAssessmentMark(asm.title, newScore))
+                editingAssessment = null
+            },
+            onReset = {
+                onAction(M3ECourseDetailAction.SetAssessmentMark(asm.title, null))
+                editingAssessment = null
+            }
+        )
+    }
+
+    if (editingLabFat) {
+        M3EMarkEditDialog(
+            title = "Lab Final Assessment (Lab FAT)",
+            maxMarks = 50.0,
+            currentScore = state.labFatMark ?: 40.0,
+            onDismiss = { editingLabFat = false },
+            onSave = { newScore ->
+                onAction(M3ECourseDetailAction.SetLabFatMark(newScore))
+                editingLabFat = false
+            },
+            onReset = {
+                onAction(M3ECourseDetailAction.SetLabFatMark(null))
+                editingLabFat = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun M3EAssessmentSimulatorCard(
+    assessment: M3EAssessmentItem,
+    isSimulated: Boolean,
+    onEdit: () -> Unit
+) {
+    val colors = M3ETheme.colors
+    M3ESurfaceCard(
+        containerLevel = SurfaceContainerLevel.LOW,
+        cornerRadius = 10.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = assessment.title,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.onSurface
+                    )
+                    if (isSimulated) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(colors.primaryContainer)
+                                .padding(horizontal = 4.dp, vertical = 1.dp)
+                        ) {
+                            Text(
+                                text = "Simulated",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
+                Text(
+                    text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
+                    fontSize = 11.sp,
+                    color = colors.onSurfaceVariant
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSimulated) colors.primary else colors.onSurface
+                )
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Edit,
+                        contentDescription = "Simulate mark",
+                        tint = colors.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun M3EMarkEditDialog(
+    title: String,
+    maxMarks: Double,
+    currentScore: Double,
+    onDismiss: () -> Unit,
+    onSave: (Double) -> Unit,
+    onReset: () -> Unit
+) {
+    val colors = M3ETheme.colors
+    var scoreInput by remember { mutableStateOf(currentScore.toFixed(1)) }
+    val max = if (maxMarks > 0) maxMarks else 100.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = "Simulate Mark", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(text = title, fontSize = 13.sp, color = colors.onSurfaceVariant)
+                Text(text = "Max Mark: ${max.toFixed(1)}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+
+                OutlinedTextField(
+                    value = scoreInput,
+                    onValueChange = { scoreInput = it },
+                    label = { Text("Scored Mark") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text(text = "Quick Presets:", fontSize = 11.sp, color = colors.onSurfaceVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    listOf(100, 90, 80, 75, 60).forEach { pct ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.surfaceContainerHighest)
+                                .clickable {
+                                    scoreInput = ((pct / 100.0) * max).toFixed(1)
+                                }
+                                .padding(vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(text = "$pct%", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val parsed = scoreInput.toDoubleOrNull() ?: currentScore
+                    onSave(min(max, max(0.0, parsed)))
+                }
+            ) {
+                Text("Save")
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = onReset) {
+                    Text("Reset to VTOP")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+            }
+        }
+    )
 }
 
 /**

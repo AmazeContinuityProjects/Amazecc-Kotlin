@@ -1,3 +1,14 @@
 [
-  { "title": "Initial release", "description": "After being in public beta for a while, we are excited to announce the initial release of our app with a wide range of features and improvements." }
+  {
+    "title": "v3.1.0 — Marks Predictor, UniCC Curves & Faculty Reviews (Nov 2026)",
+    "description": "Integrated UniCC cohort statistics (mean, standard deviation, and student count normalized to 100-point scale) into the Marks Predictor and per-course FAT solver. Added Predicted & Maximisable grade/mark cards, segmented Locked/Pending/Lost progress bar, Predicted Grade Cutoffs (S–E), and editable pending Theory/Lab FAT rows. Rebuilt Faculty Directory from the FFCS report with your course faculties hoisted first, disk-cached vitfac catalog, cached faculty photos, weekly schedule sheet, and the vitfac Reviews popup pane (Lecture/DA/Vibe metrics, course filter, Green/Red flags). Fixed Lab-Only course credits fallback, embedded-course weighted averages, Grade History layout, and attendance sync empty-response protection."
+  },
+  {
+    "title": "v3.0.0 — Material 3 Expressive Overhaul & FFCS Parity (Nov 2026)",
+    "description": "Complete Material 3 Expressive redesign across Home, Attendance, Academics, Course Detail, Timetable, Profile, Settings, and Campus Features. Added canonical embedded-course semantics (theory/lab credit weighting), overall Attendance & Bunk Predictor, Free Classrooms overhaul, FFCS Planner & export builders, Friend Finder, Student Report PDF/QR/HTML exports, cache-first Bus Routes, Circulars, Grade History, and amazecc:// deep links."
+  },
+  {
+    "title": "Initial release",
+    "description": "After being in public beta for a while, we are excited to announce the initial release of our app with a wide range of features and improvements."
+  }
 ]

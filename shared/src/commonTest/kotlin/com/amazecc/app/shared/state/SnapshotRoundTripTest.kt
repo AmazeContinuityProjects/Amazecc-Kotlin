@@ -338,6 +338,56 @@ class SnapshotRoundTripTest {
     }
 
     @Test
+    fun embeddedCourseTheoryAndLabHalvesSurviveRoundTrip() {
+        val original = AppDataSnapshot(
+            schemaVersion = 2,
+            academic = AcademicData(
+                semesters = mapOf(
+                    "SEM1" to SemesterData(
+                        semesterId = "SEM1",
+                        courses = mapOf(
+                            "BACSE106" to StoredCourse(
+                                courseCode = "BACSE106",
+                                courseTitle = "Operating Systems",
+                                courseType = "Embedded Theory",
+                                slots = listOf("A1", "TA1"),
+                                attendance = StoredAttendance(
+                                    attendedClasses = 24,
+                                    totalClasses = 27,
+                                    attendancePercentage = "88.89%",
+                                )
+                            ),
+                            "BACSE106(L)" to StoredCourse(
+                                courseCode = "BACSE106(L)",
+                                courseTitle = "Operating Systems",
+                                courseType = "Embedded Lab",
+                                slots = listOf("L41", "L42"),
+                                attendance = StoredAttendance(
+                                    attendedClasses = 18,
+                                    totalClasses = 20,
+                                    attendancePercentage = "90.00%",
+                                )
+                            )
+                        )
+                    )
+                )
+            )
+        )
+        val restored = VtopIngestor.toLegacy(VtopIngestor.fromLegacy(original))
+        val sem = assertNotNull(restored.academic.semesters["SEM1"])
+        val theory = assertNotNull(sem.courses["BACSE106"], "Theory half must survive")
+        val lab = assertNotNull(sem.courses["BACSE106(L)"], "Lab half must survive")
+        assertEquals(24, theory.attendance?.attendedClasses)
+        assertEquals(27, theory.attendance?.totalClasses)
+        assertEquals("88.89%", theory.attendance?.attendancePercentage)
+        assertEquals(listOf("A1", "TA1"), theory.slots)
+        assertEquals(18, lab.attendance?.attendedClasses)
+        assertEquals(20, lab.attendance?.totalClasses)
+        assertEquals("90.00%", lab.attendance?.attendancePercentage)
+        assertEquals(listOf("L41", "L42"), lab.slots)
+    }
+
+    @Test
     fun domainExamIsKeyedBySemesterIdNotSectionHeader() {
         // Projections.exams filters on this, so getting it wrong renders an empty list.
         val domain = VtopIngestor.fromLegacy(v2())

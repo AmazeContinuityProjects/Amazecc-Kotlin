@@ -134,7 +134,7 @@ fun MainTabPager(
             ),
         flingBehavior = androidx.compose.foundation.pager.PagerDefaults.flingBehavior(state = pagerState),
         beyondViewportPageCount = 1,
-        key = { tabScreens[it] }
+        key = { page -> if (page in tabScreens.indices) tabScreens[page] else page }
     ) { page ->
         when (val screen = tabScreens[page]) {
             Screen.HOME -> M3EHomeScreen()

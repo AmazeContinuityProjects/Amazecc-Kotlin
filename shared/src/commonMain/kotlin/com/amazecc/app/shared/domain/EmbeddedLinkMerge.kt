@@ -57,37 +57,63 @@ object EmbeddedLinkMerge {
      * Already-merged snapshots are returned unchanged (no copy, no recomposition churn).
      */
     fun mergeSnapshot(snapshot: DomainSnapshot): DomainSnapshot {
+        val curriculumCredits = curriculumCredits(snapshot.academics.curriculum)
         var changed = false
         val semesters = snapshot.academics.semesters.mapValues { (_, sem) ->
             val before = sem.courses
-            val after = mergeCourses(before.values.toList()).associateBy { it.code }
+            val after = mergeCourses(before.values.toList(), curriculumCredits).associateBy { it.code }
             if (after != before) changed = true
             if (after == before) sem else sem.copy(courses = after)
         }
         return if (changed) snapshot.copy(academics = snapshot.academics.copy(semesters = semesters)) else snapshot
     }
 
+    /** Curriculum is authoritative for credits: it is the official programme structure. */
+    fun curriculumCredits(curriculum: com.amazecc.app.shared.model.CurriculumRes?): Map<String, String> {
+        if (curriculum == null) return emptyMap()
+        val out = mutableMapOf<String, String>()
+        for (detail in curriculum.details) {
+            for (basket in detail.baskets) {
+                for (item in basket.items) {
+                    if (item.credits > 0) out[item.code] = item.credits.toString()
+                }
+            }
+        }
+        return out
+    }
+
     /** Merge one semester's rows. Single-row groups keep their original code (identity only). */
-    fun mergeCourses(courses: List<Course>): List<Course> {
+    fun mergeCourses(
+        courses: List<Course>,
+        curriculumCredits: Map<String, String> = emptyMap()
+    ): List<Course> {
         if (courses.isEmpty()) return emptyList()
         val groups = LinkedHashMap<String, MutableList<Course>>()
         for (course in courses) {
             val key = canonicalCode(course).ifEmpty { course.code }
             groups.getOrPut(key) { mutableListOf() }.add(course)
         }
-        return groups.map { (base, rows) -> mergeGroup(base, rows) }.sortedBy { it.code }
+        return groups.map { (base, rows) -> mergeGroup(base, rows, curriculumCredits) }.sortedBy { it.code }
     }
 
     /** Legacy-ingestion variant: same rule over the persisted `StoredCourse` map. */
-    fun mergeStoredCourses(courses: Map<String, StoredCourse>): Map<String, StoredCourse> =
-        mergeCourses(courses.values.map { it.toCourse() })
+    fun mergeStoredCourses(
+        courses: Map<String, StoredCourse>,
+        curriculumCredits: Map<String, String> = emptyMap()
+    ): Map<String, StoredCourse> =
+        mergeCourses(courses.values.map { it.toCourse() }, curriculumCredits)
             .associateBy { it.code }
             .mapValues { (_, course) -> course.toStored() }
 
-    private fun mergeGroup(base: String, rows: List<Course>): Course {
+    private fun mergeGroup(
+        base: String,
+        rows: List<Course>,
+        curriculumCredits: Map<String, String> = emptyMap()
+    ): Course {
         if (rows.size == 1) {
             val only = rows.single()
-            return only.copy(linkedBaseCode = base)
+            val resolvedCredits = only.credits?.takeIf { it.isNotBlank() } ?: curriculumCredits[base]
+            return only.copy(credits = resolvedCredits, linkedBaseCode = base)
         }
 
         val theoryRows = rows.filter { halfOf(it) != EmbeddedLinkCode.Half.LAB }
@@ -97,14 +123,57 @@ object EmbeddedLinkMerge {
         val primary = theory ?: lab ?: rows.first()
         val both = theory != null && lab != null
 
-        val credits = if (both) combinedCredits(theory!!.credits, lab!!.credits)
-        else theory?.credits?.takeIf { it.isNotBlank() } ?: lab?.credits?.takeIf { it.isNotBlank() } ?: primary.credits
+        val officialTotal = curriculumCredits[base]?.toDoubleOrNull()
+        val tVal = creditValue(theory?.credits)
+        val lVal = creditValue(lab?.credits)
+
+        val (courseCredits, theoryCredits, labCredits) = when {
+            both && officialTotal != null && officialTotal > 0.0 -> {
+                val l = lVal ?: 1.0
+                val t = (officialTotal - l).coerceAtLeast(1.0)
+                Triple(trimDouble(officialTotal), trimDouble(t), trimDouble(l))
+            }
+            both && tVal != null && lVal != null -> {
+                when {
+                    // Theory row in VTOP holding 4.0 with a 1.0 lab is 3+1 = 4 total (e.g. BAECE203, BACSE105, BACSE106)
+                    tVal == 4.0 && lVal == 1.0 -> Triple("4", "3", "1")
+                    // Theory row in VTOP holding 5.0 with a 1.0 lab is 4+1 = 5 total
+                    tVal == 5.0 && lVal == 1.0 -> Triple("5", "4", "1")
+                    // Otherwise, each half already holds its own component credit (e.g. 3+1, 2+2, 1+1, 3+2)
+                    else -> Triple(trimDouble(tVal + lVal), trimDouble(tVal), trimDouble(lVal))
+                }
+            }
+            both -> {
+                val c = combinedCredits(theory?.credits, lab?.credits)
+                Triple(c, theory?.credits, lab?.credits)
+            }
+            else -> {
+                val c = theory?.credits?.takeIf { it.isNotBlank() }
+                    ?: lab?.credits?.takeIf { it.isNotBlank() }
+                    ?: primary.credits?.takeIf { it.isNotBlank() }
+                    ?: curriculumCredits[base]
+                Triple(c, theory?.credits, lab?.credits)
+            }
+        }
+
+        val resolvedHalves = if (both) {
+            rows.map { row ->
+                val half = asHalf(row)
+                if (halfOf(row) == EmbeddedLinkCode.Half.LAB) {
+                    half.copy(credits = labCredits ?: half.credits)
+                } else {
+                    half.copy(credits = theoryCredits ?: half.credits)
+                }
+            }
+        } else {
+            rows.map(::asHalf)
+        }
 
         return primary.copy(
             code = base,
             title = EmbeddedLinkCode.displayTitle(theory?.title, lab?.title, base),
             type = if (both) "Embedded Theory and Lab" else primary.type,
-            credits = credits,
+            credits = courseCredits,
             classId = theory?.classId ?: lab?.classId ?: primary.classId,
             slots = (theory?.slots.orEmpty() + lab?.slots.orEmpty()).distinct(),
             venue = theory?.venue ?: lab?.venue ?: primary.venue,
@@ -114,10 +183,10 @@ object EmbeddedLinkMerge {
             courseSystem = theory?.courseSystem ?: primary.courseSystem ?: lab?.courseSystem,
             attendance = if (both) combinedAttendance(theory!!.attendance, lab!!.attendance)
             else theory?.attendance ?: lab?.attendance,
-            marks = combinedMarks(theory, lab),
+            marks = combinedMarks(theory, lab, theoryCredits, labCredits),
             grade = theory?.grade ?: lab?.grade ?: primary.grade,
             baskets = (theory?.baskets.orEmpty() + lab?.baskets.orEmpty()).distinct(),
-            halves = rows.map(::asHalf),
+            halves = resolvedHalves,
             isEmbeddedMerged = both,
             linkedBaseCode = base,
         )
@@ -184,7 +253,12 @@ object EmbeddedLinkMerge {
      * A half without usable credits makes the blend null — never an invented 50/50 mean. When only
      * one half published marks, that half's own number is used verbatim.
      */
-    private fun combinedMarks(theory: Course?, lab: Course?): Marks? {
+    private fun combinedMarks(
+        theory: Course?,
+        lab: Course?,
+        theoryCredits: String? = null,
+        labCredits: String? = null
+    ): Marks? {
         val tm = theory?.marks
         val lm = lab?.marks
         if (tm == null && lm == null) return null
@@ -200,13 +274,13 @@ object EmbeddedLinkMerge {
                     EmbeddedEntry(
                         code = theory?.code.orEmpty(),
                         half = EmbeddedHalf.THEORY,
-                        credits = creditValue(theory?.credits) ?: 0.0,
+                        credits = creditValue(theoryCredits) ?: creditValue(theory?.credits) ?: 0.0,
                         earnedMarks = tTotal,
                     ),
                     EmbeddedEntry(
                         code = lab?.code.orEmpty(),
                         half = EmbeddedHalf.LAB,
-                        credits = creditValue(lab?.credits) ?: 0.0,
+                        credits = creditValue(labCredits) ?: creditValue(lab?.credits) ?: 0.0,
                         earnedMarks = lTotal,
                     ),
                 )

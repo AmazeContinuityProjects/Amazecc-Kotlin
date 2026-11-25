@@ -273,6 +273,7 @@ data class LibraryRes(
 
 @Serializable
 data class KohaBook(
+    @Serializable(with = NullableStringAsEmptySerializer::class)
     val biblionumber: String = "",
     val title: String = "",
     val author: String = "",
@@ -293,7 +294,9 @@ data class KohaSearchRes(
 
 @Serializable
 data class KohaHolding(
+    @Serializable(with = NullableStringAsEmptySerializer::class)
     val itemId: String = "",
+    @Serializable(with = NullableStringAsEmptySerializer::class)
     val barcode: String = "",
     val currentLibrary: String = "",
     val homeLibrary: String = "",
@@ -306,6 +309,7 @@ data class KohaHolding(
 
 @Serializable
 data class KohaDetailBook(
+    @Serializable(with = NullableStringAsEmptySerializer::class)
     val biblionumber: String = "",
     val title: String = "",
     val author: String = "",

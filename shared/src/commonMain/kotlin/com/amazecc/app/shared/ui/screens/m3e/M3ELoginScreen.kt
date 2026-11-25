@@ -79,7 +79,6 @@ import com.amazecc.app.shared.repository.SettingsManager
 import com.amazecc.app.shared.state.AppState
 import com.amazecc.app.shared.state.Screen
 import com.amazecc.app.shared.ui.components.VtopCaptchaPrompt
-import com.amazecc.app.shared.ui.components.VtopMigrationPrompt
 import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
@@ -135,12 +134,7 @@ fun M3ELoginScreen(
         )
     }
 
-    var showMigrationPrompt by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        if (!SettingsManager.isVtopSourcePrompted() && Vtop.isSupported) {
-            showMigrationPrompt = true
-        }
-    }
+
 
     LaunchedEffect(Unit) {
         val creds = SettingsManager.getCredentials()
@@ -723,18 +717,6 @@ fun M3ELoginScreen(
                 )
             }
         }
-    }
-
-    // Modal Prompts
-    if (showMigrationPrompt) {
-        VtopMigrationPrompt(
-            onChoose = { source ->
-                AmazeClient.setVtopSource(source)
-                SettingsManager.setVtopSourcePrompted(true)
-                vtopSource = source
-                showMigrationPrompt = false
-            }
-        )
     }
 
     if (isLocalVtop && captchaRequest != null) {

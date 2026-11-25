@@ -361,6 +361,7 @@ data class ClassStats(
     val mean: Double,
     val sd: Double,
     val manual: Boolean = false,
+    val scale: Double = 100.0,
 )
 
 /** One rung of a ladder: [grade] starts at [limit], inclusive. */
@@ -425,11 +426,15 @@ fun manualClassStats(mean: Double?, sd: Double?): ClassStats? {
  *
  * `((n − 1)·s² + k·σ₀²) / ((n − 1) + k)`. A sample of 5 can report σ = 3 or σ = 25 for the same
  * class; pooling keeps a handful of contributors from swinging every band by ten marks.
+ * If stats are on a sub-100 scale (e.g. UniCC internal marks out of 60.0), standard deviation is
+ * normalized to the 100-point scale before pooling with [PRIOR_SD].
  */
 fun effectiveSd(classStats: ClassStats): Double {
-    if (classStats.manual) return classStats.sd
+    val scaleFactor = if (!classStats.manual && classStats.scale in 1.0..99.0) (100.0 / classStats.scale) else 1.0
+    if (classStats.manual) return classStats.sd * scaleFactor
     val df = max(0, classStats.count - 1).toDouble()
-    val sd = if (classStats.sd.isFinite()) max(0.0, classStats.sd) else 0.0
+    val rawSd = if (classStats.sd.isFinite()) max(0.0, classStats.sd) else 0.0
+    val sd = rawSd * scaleFactor
     return sqrt((df * sd * sd + PRIOR_DF * PRIOR_SD * PRIOR_SD) / (df + PRIOR_DF))
 }
 
@@ -444,11 +449,18 @@ fun hasUsableClassStats(classStats: ClassStats?): Boolean {
     }
 }
 
-/** The statistics the ladder is built from, with σ stabilised; null when unusable. */
+/** The statistics the ladder is built from, with σ stabilised and normalized to 100; null when unusable. */
 fun effectiveClassStats(classStats: ClassStats?): ClassStats? {
     val stats = classStats ?: return null
     if (!hasUsableClassStats(stats)) return null
-    return stats.copy(sd = effectiveSd(stats))
+    val scaleFactor = if (!stats.manual && stats.scale in 1.0..99.0) (100.0 / stats.scale) else 1.0
+    return ClassStats(
+        count = stats.count,
+        mean = stats.mean * scaleFactor,
+        sd = effectiveSd(stats),
+        manual = stats.manual,
+        scale = 100.0,
+    )
 }
 
 /** Whether a curve rests on few enough contributors to call it an early estimate. */

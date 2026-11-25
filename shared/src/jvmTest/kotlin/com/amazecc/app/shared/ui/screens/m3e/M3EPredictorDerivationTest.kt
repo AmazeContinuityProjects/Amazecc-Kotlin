@@ -109,4 +109,71 @@ class M3EPredictorDerivationTest {
         assertEquals(M3ECardTone.NEUTRAL, M3EPredictorDerivation.toneFor(null))
         assertTrue(M3EPredictorDerivation.cutoffFor("S")!! > M3EPredictorDerivation.cutoffFor("A")!!)
     }
+
+    @Test
+    fun embeddedCourseInternalMarksAreCreditWeightedAndNeverExceed100() {
+        val theoryItems = listOf(
+            M3EAssessmentItem(
+                title = "Continuous Assessment Test - I",
+                maxMarks = 50.0,
+                scoredMarks = 50.0,
+                weightagePercent = 30.0,
+                weightageMarks = 30.0,
+                component = "ETH"
+            ),
+            M3EAssessmentItem(
+                title = "Continuous Assessment Test - II",
+                maxMarks = 50.0,
+                scoredMarks = 50.0,
+                weightagePercent = 30.0,
+                weightageMarks = 30.0,
+                component = "ETH"
+            )
+        )
+        val labItems = listOf(
+            M3EAssessmentItem(
+                title = "Lab Assessment",
+                maxMarks = 50.0,
+                scoredMarks = 25.0, // 50%
+                weightagePercent = 60.0,
+                weightageMarks = 30.0,
+                component = "ELA"
+            )
+        )
+        val allAssessments = theoryItems + labItems
+
+        // Theory: 60/60 (3 credits). Lab: 30/60 (1 credit). Total: 4 credits.
+        // Formula: (3 * 60 + 1 * 30) / 4 = (180 + 30) / 4 = 210 / 4 = 52.5
+        // Max: (3 * 60 + 1 * 60) / 4 = 60.0
+        val result = M3EPredictorDerivation.courseInternalMarks(
+            assessments = allAssessments,
+            theoryCredits = 3.0,
+            labCredits = 1.0
+        )
+        org.junit.Assert.assertNotNull(result)
+        assertEquals(52.5, result!!.weightedScored, 0.001)
+        assertEquals(60.0, result.weightedMax, 0.001)
+        assertTrue(result.weightedMax <= 100.0)
+        assertTrue(result.weightedScored <= 100.0)
+
+        // Verify individual component subtotals
+        assertEquals(2, result.components.size)
+        val theoryComp = result.components.first { it.componentCode == "ETH" }
+        val labComp = result.components.first { it.componentCode == "ELA" }
+        assertEquals(60.0, theoryComp.scoredMarks, 0.001)
+        assertEquals(60.0, theoryComp.maxMarks, 0.001)
+        assertEquals(3.0, theoryComp.credits)
+        assertEquals(30.0, labComp.scoredMarks, 0.001)
+        assertEquals(60.0, labComp.maxMarks, 0.001)
+        assertEquals(1.0, labComp.credits)
+
+        // Also test convenience wrapper internalMarks
+        val (scored, max) = M3EPredictorDerivation.internalMarks(
+            allAssessments,
+            theoryCredits = 3.0,
+            labCredits = 1.0
+        )!!
+        assertEquals(52.5, scored, 0.001)
+        assertEquals(60.0, max, 0.001)
+    }
 }

@@ -131,10 +131,18 @@ fun M3EHomeScreen(
                     val subtitle = if (!hasAttendanceData) {
                         statusText.ifBlank { "Attendance not available" }
                     } else {
-                        listOfNotNull(
-                            "${attendanceTarget.toInt()}% safety target",
-                            statusText.takeIf { it.isNotBlank() }
-                        ).joinToString(" · ")
+                        val cleanedStatus = statusText
+                            .replace(Regex("""\s*\(target\s*\d+%\)""", RegexOption.IGNORE_CASE), "")
+                            .replace(Regex("""\s*below\s*\d+%\s*target""", RegexOption.IGNORE_CASE), "below target")
+                            .trim()
+                        if (cleanedStatus.isNotBlank() &&
+                            !cleanedStatus.equals("Safe margin across courses", ignoreCase = true) &&
+                            !cleanedStatus.equals("Attendance below target", ignoreCase = true)
+                        ) {
+                            "${attendanceTarget.toInt()}% safety target · $cleanedStatus"
+                        } else {
+                            "${attendanceTarget.toInt()}% safety target"
+                        }
                     }
                     M3EStatItem(
                         id = "stat_attendance",

@@ -42,3 +42,12 @@ data class MarksCourseItem(
     val slNo: String? = null,
     val courseMode: String? = null
 )
+
+@Serializable
+data class UniCcClassStatsDto(
+    val mean: Double? = null,
+    val variance: Double? = null,
+    val sd: Double? = null,
+    val count: Int? = null,
+    val error: String? = null
+)

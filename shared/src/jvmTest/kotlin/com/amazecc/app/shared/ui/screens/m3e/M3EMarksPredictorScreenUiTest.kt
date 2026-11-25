@@ -11,6 +11,7 @@ import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import com.amazecc.app.shared.domain.overhaul.M3ECoursePredictionItem
 import com.amazecc.app.shared.domain.overhaul.M3EMarksPredictorAction
 import com.amazecc.app.shared.domain.overhaul.M3EMarksPredictorState
+import com.amazecc.app.shared.domain.overhaul.M3EPredictedGpaBreakdown
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -20,17 +21,29 @@ import kotlin.test.assertTrue
 class M3EMarksPredictorScreenUiTest {
 
     private fun sampleState() = M3EMarksPredictorState(
-        predictedGpa = 9.25,
-        totalCreditsSimulated = 24,
+        gpa = M3EPredictedGpaBreakdown(
+            optimalSgpa = 9.25,
+            maximisableSgpa = 9.75,
+            optimalCredits = 20,
+            maximisableCredits = 24,
+            semesterCredits = 24,
+            optimalCgpa = 9.15,
+            desirableCgpa = 9.40,
+            optimalCgpaIsAnchor = true,
+            cumulativeCredits = 60.0
+        ),
         courses = listOf(
             M3ECoursePredictionItem(
                 courseCode = "CSE3002",
                 courseTitle = "Internet and Web Programming",
                 credits = 4,
+                courseType = "Embedded Theory",
+                typeLabel = "ETL",
                 internalScored = 46.0,
                 internalMax = 50.0,
-                selectedGrade = "S",
-                requiredFatMark = 82.0,
+                pointsLost = 4.0,
+                predictedGrade = "S",
+                maximisableGrade = "S",
                 tone = M3ECardTone.GOOD
             )
         )
@@ -47,15 +60,19 @@ class M3EMarksPredictorScreenUiTest {
             }
         }
 
-        onNodeWithText("Marks & GPA Predictor").assertExists()
+        onNodeWithText("Marks Predictor").assertExists()
+        onNodeWithText("SGPA PROJECTED").assertExists()
         onNodeWithText("9.25").assertExists()
-        onNodeWithText("24").assertExists()
-        onNodeWithText("CSE3002").assertExists()
-        onNodeWithText("82 / 100").assertExists()
+        onNodeWithText("CGPA PROJECTED").assertExists()
+        onNodeWithText("9.15").assertExists()
+        onNodeWithText("Internet and Web Programming").assertExists()
+        onNodeWithText("CSE3002", substring = true).assertExists()
+        onNodeWithText("-4.0").assertExists()
+        onNodeWithText("pts lost").assertExists()
     }
 
     @Test
-    fun testGradeSelectionEmitsAction() = runComposeUiTest {
+    fun testCourseRowClickEmitsOpenCourse() = runComposeUiTest {
         val capturedActions = mutableListOf<M3EMarksPredictorAction>()
 
         setContent {
@@ -67,16 +84,15 @@ class M3EMarksPredictorScreenUiTest {
             }
         }
 
-        onNode(hasText("A") and hasClickAction()).performClick()
+        onNodeWithText("Internet and Web Programming").performClick()
 
         assertTrue(capturedActions.isNotEmpty())
-        val gradeAction = capturedActions.filterIsInstance<M3EMarksPredictorAction.SetCourseGrade>().firstOrNull()
-        assertEquals("CSE3002", gradeAction?.courseCode)
-        assertEquals("A", gradeAction?.grade)
+        val openAction = capturedActions.filterIsInstance<M3EMarksPredictorAction.OpenCourse>().firstOrNull()
+        assertEquals("CSE3002", openAction?.courseCode)
     }
 
     @Test
-    fun testResetAllClickEmitsAction() = runComposeUiTest {
+    fun testEditModeToggleEmitsAction() = runComposeUiTest {
         val capturedActions = mutableListOf<M3EMarksPredictorAction>()
 
         setContent {
@@ -88,8 +104,8 @@ class M3EMarksPredictorScreenUiTest {
             }
         }
 
-        onNodeWithContentDescription("Reset Targets").performClick()
+        onNodeWithContentDescription("Edit subjects").performClick()
 
-        assertTrue(capturedActions.contains(M3EMarksPredictorAction.ResetAll))
+        assertTrue(capturedActions.any { it is M3EMarksPredictorAction.ToggleEditMode && it.enabled })
     }
 }

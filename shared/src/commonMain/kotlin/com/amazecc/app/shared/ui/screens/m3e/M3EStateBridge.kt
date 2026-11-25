@@ -8,6 +8,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ import com.amazecc.app.shared.utils.rememberFileSaver
 import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.config.SlotMap
 import com.amazecc.app.shared.domain.Course
+import com.amazecc.app.shared.domain.EmbeddedLinkCode
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.domain.splitSlots
 import com.amazecc.app.shared.domain.gradeHistory
@@ -106,6 +108,8 @@ import com.amazecc.app.shared.domain.overhaul.M3EGradesHistoryState
 import com.amazecc.app.shared.domain.overhaul.M3EHomeAction
 import com.amazecc.app.shared.domain.overhaul.M3EHomeState
 import com.amazecc.app.shared.domain.overhaul.M3EHostelAction
+import com.amazecc.app.shared.domain.overhaul.M3ECustomCourseRecord
+import com.amazecc.app.shared.domain.overhaul.M3EPredictedGpaBreakdown
 import com.amazecc.app.shared.domain.overhaul.M3EHostelDetails
 import com.amazecc.app.shared.domain.overhaul.M3EHostelState
 import com.amazecc.app.shared.domain.overhaul.M3EHostelTab
@@ -223,7 +227,7 @@ fun M3EHomeScreen(modifier: Modifier = Modifier) {
         val cgpa = allGrades?.publishedCgpa?.toDoubleOrNull()
             ?: currentSem?.gpa?.trim()?.toDoubleOrNull()
             ?: 0.0
-        val credits = courses.sumOf { it.credits?.toIntOrNull() ?: 0 }
+        val credits = courses.sumOf { it.credits?.toDoubleOrNull()?.toInt() ?: 0 }
         val safeBunks = courses.sumOf { course ->
             val att = course.attendance
             if (att != null && att.total > 0 && targetFraction > 0.0) {
@@ -989,22 +993,26 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
                     scoredMarks = m.score.toDoubleOrNull() ?: 0.0,
                     weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0,
                     weightageMarks = m.weightage.toDoubleOrNull() ?: 0.0,
-                    status = m.status
+                    status = m.status,
+                    component = m.component.orEmpty()
                 )
             } ?: emptyList()
-            // D-140: use the same real weighted-derivation the course page uses, instead
-            // of the old internalMax = 60.0 hardcode that made hub and detail disagree.
-            val derivedInternal = M3EPredictorDerivation.internalMarks(internalMarks)
+            val theoryHalf = c.halves.firstOrNull { it.half == "T" || !EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+            val labHalf = c.halves.firstOrNull { it.half == "L" || EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+            val tCredits = theoryHalf?.credits?.toDoubleOrNull()
+            val lCredits = labHalf?.credits?.toDoubleOrNull()
+            val derivedInternal = M3EPredictorDerivation.courseInternalMarks(internalMarks, tCredits, lCredits)
             M3EAcademicCourse(
                 courseCode = c.code,
                 courseTitle = c.title,
-                credits = c.credits?.toIntOrNull(),
+                credits = c.credits?.toDoubleOrNull()?.toInt(),
                 courseType = c.type,
                 faculty = c.faculty ?: "",
                 grade = c.grade?.letter,
-                internalScored = derivedInternal?.first ?: 0.0,
-                internalMax = derivedInternal?.second ?: 0.0,
+                internalScored = derivedInternal?.weightedScored ?: 0.0,
+                internalMax = derivedInternal?.weightedMax ?: 0.0,
                 assessments = internalMarks,
+                components = derivedInternal?.components.orEmpty(),
                 attendancePct = pct,
                 semesterLabel = semesterMap[semId] ?: semId,
                 semesterId = semId
@@ -1141,12 +1149,24 @@ fun M3ECourseDetailScreen(
     LaunchedEffect(detailSemId, curveClassId) {
         courseCurve = null
         if (curveClassId.isNullOrBlank()) return@LaunchedEffect
-        courseCurve = runCatching { AmazeClient.getServiceCurvesByClassIds(listOf(curveClassId)) }
-            .getOrNull()
-            ?.let { envelope ->
-                (envelope.batchClassStats()[curveClassId] ?: envelope.singleClassStats())?.asCurveStats()
-            }
+        // 1. Pull real cohort statistics directly from the UniCC public API route:
+        val uniStats = AmazeClient.fetchUniCcClassStats(curveClassId)
+        if (uniStats != null) {
+            courseCurve = uniStats
+        } else {
+            // 2. Fallback to service curves
+            courseCurve = runCatching { AmazeClient.getServiceCurvesByClassIds(listOf(curveClassId)) }
+                .getOrNull()
+                ?.let { envelope ->
+                    (envelope.batchClassStats()[curveClassId] ?: envelope.singleClassStats())?.asCurveStats()
+                }
+        }
     }
+
+    // What-if simulation state for assessments, Lab FAT, and Theory FAT
+    val simulatedMarks = remember(course?.code) { mutableStateMapOf<String, Double>() }
+    var simulatedLabFat by remember(course?.code) { mutableStateOf<Double?>(null) }
+    var simulatedTheoryFat by remember(course?.code) { mutableStateOf<Double?>(null) }
 
     val att = course?.attendance
     val total = att?.total ?: 0
@@ -1159,44 +1179,97 @@ fun M3ECourseDetailScreen(
     val hasAttendance = !isEmbeddedMergedDetail && total > 0
     val pct = if (hasAttendance) (attended.toDouble() / total) * 100.0 else 0.0
 
-    val internalAssessments = remember(course) {
-        course?.marks?.assessments?.map { m ->
+    val theoryHalf = course?.halves?.firstOrNull { it.half == "T" || !EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+    val labHalf = course?.halves?.firstOrNull { it.half == "L" || EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+    val detailTheoryCredits = theoryHalf?.credits?.toDoubleOrNull()
+    val detailLabCredits = labHalf?.credits?.toDoubleOrNull()
+
+    val internalAssessments = remember(course, simulatedMarks.toMap()) {
+        val mapped = course?.marks?.assessments?.map { m ->
+            val simulated = simulatedMarks[m.name]
+            val actualScored = m.score.toDoubleOrNull() ?: 0.0
+            val effectiveScored = simulated ?: actualScored
+            val maxMark = m.maxMark.toDoubleOrNull() ?: 0.0
+            val weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0
+            val effectiveWeightageMark = if (maxMark > 0.0) (effectiveScored / maxMark) * weightagePercent else (m.weightage.toDoubleOrNull() ?: 0.0)
+
             M3EAssessmentItem(
                 title = m.name,
-                // 0.0 (rather than a guessed 50) when VTOP omitted the maximum: the derivation
-                // then skips that component instead of inventing a denominator.
-                maxMarks = m.maxMark.toDoubleOrNull() ?: 0.0,
-                scoredMarks = m.score.toDoubleOrNull() ?: 0.0,
-                weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0,
-                weightageMarks = m.weightage.toDoubleOrNull() ?: 0.0,
-                status = m.status
+                maxMarks = maxMark,
+                scoredMarks = effectiveScored,
+                weightagePercent = weightagePercent,
+                weightageMarks = effectiveWeightageMark,
+                status = if (simulated != null) "Simulated" else m.status,
+                component = m.component.orEmpty()
             )
         }.orEmpty()
+
+        // Inject FAT row(s) for pending components — matches web's createPredictorAssessmentsFromVTOP.
+        // This makes the FAT row appear in the assessment list so users can simulate it via the edit dialog.
+        val theoryAsms = mapped.filter { !it.component.equals("Lab", ignoreCase = true) }
+        val labAsms = mapped.filter { it.component.equals("Lab", ignoreCase = true) }
+        val hasTheoryFat = theoryAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
+        val theoryWeight = theoryAsms.sumOf { it.weightagePercent }
+        val hasLabFat = labAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
+        val labWeight = labAsms.sumOf { it.weightagePercent }
+
+        mapped.toMutableList().also { list ->
+            if (!hasTheoryFat && theoryWeight in 1.0..99.9) {
+                val fatTitle = "Final Assessment Test"
+                val simScore = simulatedMarks[fatTitle]
+                val fatMax = 100.0
+                val fatWeight = maxOf(10.0, 100.0 - theoryWeight)
+                list.add(M3EAssessmentItem(
+                    title = fatTitle,
+                    maxMarks = fatMax,
+                    scoredMarks = simScore ?: 0.0,
+                    weightagePercent = fatWeight,
+                    weightageMarks = if (simScore != null) (simScore / fatMax) * fatWeight else 0.0,
+                    status = if (simScore != null) "Simulated" else "Pending",
+                    component = theoryAsms.firstOrNull()?.component ?: "Theory"
+                ))
+            }
+            if (!hasLabFat && labWeight in 1.0..99.9) {
+                val fatTitle = "Lab Final Assessment Test"
+                val simScore = simulatedMarks[fatTitle]
+                val fatMax = 50.0
+                val fatWeight = maxOf(10.0, 100.0 - labWeight)
+                list.add(M3EAssessmentItem(
+                    title = fatTitle,
+                    maxMarks = fatMax,
+                    scoredMarks = simScore ?: 0.0,
+                    weightagePercent = fatWeight,
+                    weightageMarks = if (simScore != null) (simScore / fatMax) * fatWeight else 0.0,
+                    status = if (simScore != null) "Simulated" else "Pending",
+                    component = "Lab"
+                ))
+            }
+        }
     }
 
-    // Real internal marks from the published assessment weightages; null when no component has
-    // usable numbers, so the UI says "Not available" instead of a confident-looking 0.
-    val internalMarks = remember(internalAssessments) {
-        M3EPredictorDerivation.internalMarks(internalAssessments)
+    // Real internal marks from the published assessment weightages; credit-weighted for embedded courses.
+    val internalResult = remember(internalAssessments, detailTheoryCredits, detailLabCredits) {
+        M3EPredictorDerivation.courseInternalMarks(internalAssessments, detailTheoryCredits, detailLabCredits)
     }
-    val internalScoredForPrediction = internalMarks?.first ?: 0.0
-    val internalMaxForPrediction = internalMarks?.second ?: 0.0
+    val internalScoredForPrediction = internalResult?.weightedScored ?: 0.0
+    val internalMaxForPrediction = internalResult?.weightedMax ?: 0.0
 
-    // Recomputed whenever the target grade changes (D-117): the grade selector is a real control.
-    // Real grading system + course type gate the cohort curve; without them the derivation
-    // deliberately keeps the absolute ladder even when a curve was fetched.
+    // Solves required FAT score, taking into account simulated assessments, Lab FAT, and UniCC cohort curves
     val requiredFinalScore = remember(
-        internalScoredForPrediction, internalMaxForPrediction, targetGrade, courseCurve, course
+        internalAssessments, detailTheoryCredits, detailLabCredits, simulatedLabFat, targetGrade, courseCurve, course
     ) {
-        if (internalMarks != null && internalMaxForPrediction > 0.0) {
-            M3EPredictorDerivation.requiredFatPercentage(
-                internalScored = internalScoredForPrediction,
-                internalMax = internalMaxForPrediction,
+        if (internalAssessments.isNotEmpty()) {
+            val solverResult = M3EPredictorDerivation.solveCourseFat(
                 targetGrade = targetGrade,
+                assessments = internalAssessments,
+                theoryCredits = detailTheoryCredits,
+                labCredits = detailLabCredits,
+                labFatScored = simulatedLabFat,
                 classStats = courseCurve,
                 courseSystem = course?.courseSystem,
                 courseType = course?.type
             )
+            solverResult.requiredFatRaw
         } else null
     }
 
@@ -1223,7 +1296,7 @@ fun M3ECourseDetailScreen(
     val state = M3ECourseDetailState(
         courseCode = syllabusCourseCode,
         courseTitle = course?.title?.takeIf { it.isNotBlank() } ?: syllabusCourseCode.ifBlank { "Course Details" },
-        credits = course?.credits?.toIntOrNull(),
+        credits = course?.credits?.toDoubleOrNull()?.toInt(),
         courseType = course?.type?.takeIf { it.isNotBlank() } ?: "Not published",
         slot = course?.slots?.firstOrNull()?.takeIf { it.isNotBlank() } ?: "Not published",
         venue = course?.venue?.takeIf { it.isNotBlank() } ?: "Not published",
@@ -1249,6 +1322,7 @@ fun M3ECourseDetailScreen(
         internalScored = internalScoredForPrediction,
         internalMax = internalMaxForPrediction,
         assessments = internalAssessments,
+        components = internalResult?.components.orEmpty(),
         targetGrade = targetGrade,
         requiredFinalScore = requiredFinalScore,
         halves = course?.halves.orEmpty(),
@@ -1265,7 +1339,13 @@ fun M3ECourseDetailScreen(
         },
         standaloneAttendance = course?.takeUnless { it.isEmbeddedMerged }?.attendance,
         courseSlots = course?.slots.orEmpty(),
-        gradeHistory = history
+        gradeHistory = history,
+        classStats = courseCurve,
+        classAverage = courseCurve?.mean,
+        classMax = null,
+        simulatedAssessments = simulatedMarks.toMap(),
+        labFatMark = simulatedLabFat,
+        theoryFatMark = simulatedTheoryFat
     )
 
     AmazeM3ETheme(isDark = isDark) {
@@ -1275,6 +1355,19 @@ fun M3ECourseDetailScreen(
                 when (action) {
                     is M3ECourseDetailAction.SelectTab -> activeTab = action.tab
                     is M3ECourseDetailAction.SetTargetGrade -> targetGrade = action.grade
+                    is M3ECourseDetailAction.SetAssessmentMark -> {
+                        if (action.score == null) {
+                            simulatedMarks.remove(action.assessmentTitle)
+                        } else {
+                            simulatedMarks[action.assessmentTitle] = action.score
+                        }
+                    }
+                    is M3ECourseDetailAction.SetLabFatMark -> simulatedLabFat = action.score
+                    is M3ECourseDetailAction.ResetSimulations -> {
+                        simulatedMarks.clear()
+                        simulatedLabFat = null
+                        simulatedTheoryFat = null
+                    }
                     is M3ECourseDetailAction.OpenQBank -> course?.let { AppState.openQBankCourse(it.code) }
                     is M3ECourseDetailAction.DownloadSyllabus -> scope.launch {
                         syllabusStatus = null
@@ -1484,123 +1577,615 @@ fun M3ECurriculumScreen(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun M3EMarksPredictorScreen(modifier: Modifier = Modifier) {
+fun M3EMarksPredictorScreen(
+    modifier: Modifier = Modifier,
+    onBack: () -> Unit = { AppState.navigateBack() }
+) {
     val isDark = M3EStateBridge.isDarkThemeActive()
     val domain by AppState.domain.collectAsState()
     val selectedSemId by AppState.selectedSemester.collectAsState()
     val isLoading by AppState.isLoading.collectAsState()
+    val allGrades by AppState.allGrades.collectAsState()
 
     val currentSem = domain.academics.semesters[selectedSemId]
-    val rawCourses = remember(domain, selectedSemId) { com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId) }
+    val rawCourses = remember(domain, selectedSemId) {
+        com.amazecc.app.shared.domain.Projections.mergedCourses(domain, selectedSemId)
+    }
 
-    // Real cohort curves (D-012). No class data -> the derivation keeps the absolute ladder.
+    // Cohort curves from UniCC API
     var curveStats by remember { mutableStateOf<Map<String, ClassStats>>(emptyMap()) }
     val curveClassIds = remember(rawCourses) {
         rawCourses.mapNotNull { c -> c.marks?.classNbr ?: c.classId }.distinct().take(100)
     }
     LaunchedEffect(curveClassIds) {
         if (curveClassIds.isEmpty()) return@LaunchedEffect
-        val envelope = AmazeClient.getServiceCurvesByClassIds(curveClassIds)
-        curveStats = envelope?.batchClassStats()
-            ?.mapValues { it.value.asCurveStats() }
-            ?.filterValues { it != null }
-            ?.mapValues { it.value!! }
-            ?: emptyMap()
+        val uniStats = AmazeClient.fetchUniCcClassStatsBatch(curveClassIds)
+        if (uniStats.isNotEmpty()) {
+            curveStats = uniStats
+        } else {
+            val envelope = AmazeClient.getServiceCurvesByClassIds(curveClassIds)
+            curveStats = envelope?.batchClassStats()
+                ?.mapValues { it.value.asCurveStats() }
+                ?.filterValues { it != null }
+                ?.mapValues { it.value!! }
+                ?: emptyMap()
+        }
     }
 
-    var selectedCourseCode by remember { mutableStateOf<String?>(null) }
-    // Only explicit user overrides live here. Reset returns to the grade VTOP actually published,
-    // never to a made-up default letter.
-    val gradesMap = remember { mutableStateMapOf<String, String>() }
+    var viewMode by remember { mutableStateOf("list") }
+    var activeCourseCode by remember { mutableStateOf("") }
+    var isEditMode by remember { mutableStateOf(false) }
 
-    // Copy real marks out of the snapshot; the pure derivation owns every displayed number.
-    val predictorInputs = remember(rawCourses, curveStats) {
-        rawCourses.map { c ->
-            M3EPredictorDerivation.CourseInput(
-                code = c.code,
-                classStats = curveStats[c.marks?.classNbr ?: c.classId],
-                // D-117: real VTOP grading system / course type are required to unlock a curve;
-                // omitting them silently disabled every curve at runtime.
-                courseSystem = c.courseSystem,
-                courseType = c.type,
-                title = c.title,
-                credits = c.credits?.toIntOrNull() ?: 3,
-                publishedGrade = c.grade?.letter,
-                assessments = c.marks?.assessments.orEmpty().map { m ->
-                    M3EAssessmentItem(
-                        title = m.name,
-                        maxMarks = m.maxMark.toDoubleOrNull() ?: 0.0,
-                        scoredMarks = m.score.toDoubleOrNull() ?: 0.0,
-                        weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0,
-                        weightageMarks = m.weightage.toDoubleOrNull() ?: 0.0,
-                        status = m.status
-                    )
-                }
+    // Intercept back navigation when inside per-course mode
+    AppBackHandler(enabled = viewMode == "course") {
+        viewMode = "list"
+        activeCourseCode = ""
+    }
+
+    // Custom courses created by the user
+    val customCourses = remember { mutableStateListOf<M3ECustomCourseRecord>() }
+    // Courses ignored by the user from GPA
+    val ignoredCodes = remember { mutableStateListOf<String>() }
+
+    // Per-course simulated assessments: courseCode -> (assessmentTitle -> score)
+    val simulatedMarksMap = remember { mutableStateMapOf<String, MutableMap<String, Double>>() }
+    // Per-course simulated Lab FAT: courseCode -> score
+    val simulatedLabFatMap = remember { mutableStateMapOf<String, Double?>() }
+    // Per-course target grades
+    val targetGradesMap = remember { mutableStateMapOf<String, String>() }
+
+    // Helper to get default assessments for custom course types
+    fun defaultAssessmentsForType(type: String): List<M3EAssessmentItem> {
+        return when (type) {
+            "ETL" -> listOf(
+                M3EAssessmentItem(title = "Continuous Assessment Test 1", maxMarks = 50.0, scoredMarks = 0.0, weightagePercent = 15.0, weightageMarks = 0.0, status = "Pending", component = "Theory"),
+                M3EAssessmentItem(title = "Continuous Assessment Test 2", maxMarks = 50.0, scoredMarks = 0.0, weightagePercent = 15.0, weightageMarks = 0.0, status = "Pending", component = "Theory"),
+                M3EAssessmentItem(title = "Digital Assignment 1", maxMarks = 10.0, scoredMarks = 0.0, weightagePercent = 10.0, weightageMarks = 0.0, status = "Pending", component = "Theory"),
+                M3EAssessmentItem(title = "Digital Assignment 2", maxMarks = 10.0, scoredMarks = 0.0, weightagePercent = 10.0, weightageMarks = 0.0, status = "Pending", component = "Theory"),
+                M3EAssessmentItem(title = "Lab Continuous Assessment", maxMarks = 60.0, scoredMarks = 0.0, weightagePercent = 50.0, weightageMarks = 0.0, status = "Pending", component = "Lab"),
+                M3EAssessmentItem(title = "Lab Final Assessment Test", maxMarks = 50.0, scoredMarks = 0.0, weightagePercent = 50.0, weightageMarks = 0.0, status = "Pending", component = "Lab")
+            )
+            "LO" -> listOf(
+                M3EAssessmentItem(title = "Lab Continuous Assessment", maxMarks = 60.0, scoredMarks = 0.0, weightagePercent = 60.0, weightageMarks = 0.0, status = "Pending", component = "Lab"),
+                M3EAssessmentItem(title = "Lab Final Assessment Test", maxMarks = 50.0, scoredMarks = 0.0, weightagePercent = 40.0, weightageMarks = 0.0, status = "Pending", component = "Lab")
+            )
+            else -> listOf(
+                M3EAssessmentItem(title = "Continuous Assessment Test 1", maxMarks = 50.0, scoredMarks = 0.0, weightagePercent = 15.0, weightageMarks = 0.0, status = "Pending", component = "Theory"),
+                M3EAssessmentItem(title = "Continuous Assessment Test 2", maxMarks = 50.0, scoredMarks = 0.0, weightagePercent = 15.0, weightageMarks = 0.0, status = "Pending", component = "Theory"),
+                M3EAssessmentItem(title = "Digital Assignment 1", maxMarks = 10.0, scoredMarks = 0.0, weightagePercent = 10.0, weightageMarks = 0.0, status = "Pending", component = "Theory"),
+                M3EAssessmentItem(title = "Digital Assignment 2", maxMarks = 10.0, scoredMarks = 0.0, weightagePercent = 10.0, weightageMarks = 0.0, status = "Pending", component = "Theory")
             )
         }
     }
-    val selectedGrades = remember(predictorInputs,gradesMap) {
-        predictorInputs.associate { input ->
-            input.code to (gradesMap[input.code] ?: input.publishedGrade.orEmpty())
-        }
-    }
-    val courseItems = remember(predictorInputs, selectedGrades) {
-        predictorInputs.map { input ->
-            val grade = selectedGrades[input.code].orEmpty()
-            val internal = M3EPredictorDerivation.internalMarks(input.assessments)
-            val requiredFat = internal?.let { (scored, max) ->
-                if (grade.isBlank()) null
-                else M3EPredictorDerivation.requiredFatPercentage(
-                    internalScored = scored,
-                    internalMax = max,
-                    targetGrade = grade,
-                    classStats = input.classStats,
-                    courseSystem = input.courseSystem,
-                    courseType = input.courseType
+
+    // Build prediction items for real enrolled courses
+    val enrolledPredictionItems = remember(
+        rawCourses,
+        curveStats,
+        simulatedMarksMap.toMap(),
+        simulatedLabFatMap.toMap(),
+        ignoredCodes.toSet(),
+        targetGradesMap.toMap()
+    ) {
+        rawCourses.map { c ->
+            val th = c.halves.firstOrNull { it.half == "T" || !EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+            val lh = c.halves.firstOrNull { it.half == "L" || EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+            val tCr = th?.credits?.toDoubleOrNull() ?: 3.0
+            val lCr = lh?.credits?.toDoubleOrNull() ?: 1.0
+            val isEmbedded = th != null && lh != null
+            val credits = c.credits?.toDoubleOrNull()?.toInt() ?: (if (isEmbedded) (tCr + lCr).toInt() else 3)
+            val courseType = c.type.ifBlank { if (isEmbedded) "Embedded Theory" else if (lh != null) "Lab Only" else "Theory Only" }
+            val typeLabel = M3EPredictorDerivation.typeLabel(courseType, isEmbedded)
+            val classStats = curveStats[c.marks?.classNbr ?: c.classId]
+
+            val courseSims = simulatedMarksMap[c.code]
+            val effectiveAssessments = c.marks?.assessments.orEmpty().map { m ->
+                val simScore = courseSims?.get(m.name)
+                val actualScored = m.score.toDoubleOrNull() ?: 0.0
+                val effectiveScored = simScore ?: actualScored
+                val maxMark = m.maxMark.toDoubleOrNull() ?: 0.0
+                val weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0
+                val effectiveWeightageMark = if (maxMark > 0.0) (effectiveScored / maxMark) * weightagePercent else (m.weightage.toDoubleOrNull() ?: 0.0)
+
+                M3EAssessmentItem(
+                    title = m.name,
+                    maxMarks = maxMark,
+                    scoredMarks = effectiveScored,
+                    weightagePercent = weightagePercent,
+                    weightageMarks = effectiveWeightageMark,
+                    status = if (simScore != null) "Simulated" else m.status,
+                    component = m.component.orEmpty()
                 )
             }
+
+            // Inject FAT row if the theory component has no FAT and total weight < 100.
+            // Web's createPredictorAssessmentsFromVTOP() does this automatically; we replicate it here.
+            val theoryAsms = effectiveAssessments.filter { !it.component.equals("Lab", ignoreCase = true) }
+            val labAsms = effectiveAssessments.filter { it.component.equals("Lab", ignoreCase = true) }
+            val hasTheoryFat = theoryAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
+            val theoryWeight = theoryAsms.sumOf { it.weightagePercent }
+            val hasLabFat = labAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
+            val labWeight = labAsms.sumOf { it.weightagePercent }
+
+            val courseLabFat = simulatedLabFatMap[c.code]
+            val finalAssessments = effectiveAssessments.toMutableList().also { list ->
+                // Inject Theory FAT if theory assessments exist but no FAT yet
+                if (!hasTheoryFat && theoryWeight in 1.0..99.9) {
+                    val fatTitle = "Final Assessment Test"
+                    val simScore = courseSims?.get(fatTitle)
+                    val fatMax = 100.0
+                    val fatWeight = maxOf(10.0, 100.0 - theoryWeight)
+                    list.add(M3EAssessmentItem(
+                        title = fatTitle,
+                        maxMarks = fatMax,
+                        scoredMarks = simScore ?: 0.0,
+                        weightagePercent = fatWeight,
+                        weightageMarks = if (simScore != null) (simScore / fatMax) * fatWeight else 0.0,
+                        status = if (simScore != null) "Simulated" else "Pending",
+                        component = if (theoryAsms.isNotEmpty()) theoryAsms.first().component else "Theory"
+                    ))
+                }
+                // Inject Lab FAT if lab assessments exist but no Lab FAT yet
+                if (!hasLabFat && labWeight in 1.0..99.9) {
+                    val fatTitle = "Lab Final Assessment Test"
+                    val simScore = courseSims?.get(fatTitle) ?: courseLabFat
+                    val fatMax = 50.0
+                    val fatWeight = maxOf(10.0, 100.0 - labWeight)
+                    list.add(M3EAssessmentItem(
+                        title = fatTitle,
+                        maxMarks = fatMax,
+                        scoredMarks = simScore ?: 0.0,
+                        weightagePercent = fatWeight,
+                        weightageMarks = if (simScore != null) (simScore / fatMax) * fatWeight else 0.0,
+                        status = if (simScore != null) "Simulated" else "Pending",
+                        component = "Lab"
+                    ))
+                }
+            }
+
+            val metrics = M3EPredictorDerivation.calculateCoursePredictionMetrics(
+                assessments = finalAssessments,
+                theoryCredits = tCr,
+                labCredits = lCr,
+                classStats = classStats,
+                courseSystem = c.courseSystem,
+                courseType = c.type
+            )
+
+            val isIgnored = ignoredCodes.contains(c.code)
+            val selectedGrade = targetGradesMap[c.code] ?: metrics.optimalGrade ?: c.grade?.letter.orEmpty()
+
             M3ECoursePredictionItem(
-                courseCode = input.code,
-                courseTitle = input.title,
-                credits = input.credits,
-                internalScored = internal?.first ?: 0.0,
-                internalMax = internal?.second ?: 0.0,
-                selectedGrade = grade,
-                requiredFatMark = requiredFat,
-                tone = M3EPredictorDerivation.toneFor(requiredFat)
+                courseCode = c.code,
+                courseTitle = c.title,
+                credits = credits,
+                courseType = courseType,
+                typeLabel = typeLabel,
+                internalScored = metrics.currentScoredScaled,
+                internalMax = metrics.maxPossibleScaled + metrics.pointsLostScaled,
+                pointsLost = metrics.pointsLostScaled,
+                predictedGrade = metrics.optimalGrade,
+                maximisableGrade = metrics.maximisableGrade,
+                tone = M3EPredictorDerivation.toneForGrade(metrics.optimalGrade),
+                isCustom = false,
+                isIgnored = isIgnored,
+                selectedGrade = selectedGrade,
+                requiredFatMark = null
             )
         }
     }
-    val predictedGpa = remember(predictorInputs, selectedGrades) {
-        M3EPredictorDerivation.predictGpa(predictorInputs, selectedGrades)
+
+    // Build prediction items for user's custom courses
+    val customPredictionItems = remember(
+        customCourses.toList(),
+        simulatedMarksMap.toMap(),
+        ignoredCodes.toSet(),
+        targetGradesMap.toMap()
+    ) {
+        customCourses.map { custom ->
+            val isEmbedded = custom.type == "ETL"
+            val isLabOnly = custom.type == "LO"
+            val tCr = if (isLabOnly) 0.0 else if (isEmbedded) (custom.credits - 1.0).coerceAtLeast(1.0) else custom.credits.toDouble()
+            val lCr = if (isLabOnly) custom.credits.toDouble() else if (isEmbedded) 1.0 else 0.0
+            val courseType = if (isEmbedded) "Embedded Theory" else if (isLabOnly) "Lab Only" else "Theory Only"
+
+            val defaultAsms = defaultAssessmentsForType(custom.type)
+            val courseSims = simulatedMarksMap[custom.code]
+            val effectiveAssessments = defaultAsms.map { m ->
+                val simScore = courseSims?.get(m.title)
+                val scored = simScore ?: m.scoredMarks
+                val effectiveWeightageMark = if (m.maxMarks > 0.0) (scored / m.maxMarks) * m.weightagePercent else 0.0
+                m.copy(
+                    scoredMarks = scored,
+                    weightageMarks = effectiveWeightageMark,
+                    status = if (simScore != null) "Simulated" else m.status
+                )
+            }
+
+            val metrics = M3EPredictorDerivation.calculateCoursePredictionMetrics(
+                assessments = effectiveAssessments,
+                theoryCredits = tCr,
+                labCredits = lCr,
+                classStats = null,
+                courseSystem = null,
+                courseType = custom.type
+            )
+
+            val isIgnored = ignoredCodes.contains(custom.code)
+            val selectedGrade = targetGradesMap[custom.code] ?: metrics.optimalGrade ?: "A"
+
+            M3ECoursePredictionItem(
+                courseCode = custom.code,
+                courseTitle = custom.title,
+                credits = custom.credits,
+                courseType = courseType,
+                typeLabel = custom.type,
+                internalScored = metrics.currentScoredScaled,
+                internalMax = metrics.maxPossibleScaled + metrics.pointsLostScaled,
+                pointsLost = metrics.pointsLostScaled,
+                predictedGrade = metrics.optimalGrade,
+                maximisableGrade = metrics.maximisableGrade,
+                tone = M3EPredictorDerivation.toneForGrade(metrics.optimalGrade),
+                isCustom = true,
+                isIgnored = isIgnored,
+                selectedGrade = selectedGrade,
+                requiredFatMark = null
+            )
+        }
+    }
+
+    // All courses sorted by points lost descending (furthest behind at top)
+    val allCourses = remember(enrolledPredictionItems, customPredictionItems) {
+        (enrolledPredictionItems + customPredictionItems).sortedByDescending { it.pointsLost }
+    }
+
+    // Predict GPA pair (SGPA & CGPA Projected) from non-ignored courses
+    val gpaBreakdown = remember<M3EPredictedGpaBreakdown>(allCourses, allGrades, currentSem) {
+        val gpaCourses = allCourses.filter { !it.isIgnored }.map { item ->
+            M3EPredictorDerivation.GpaCourseItem(
+                credits = item.credits,
+                optimalGrade = item.predictedGrade ?: item.maximisableGrade,
+                maximisableGrade = item.maximisableGrade
+            )
+        }
+        val publishedCgpa = allGrades?.publishedCgpa?.toDoubleOrNull()
+            ?: currentSem?.gpa?.trim()?.toDoubleOrNull()
+            ?: 0.0
+        val cumulativeCredits = allGrades?.overall?.cgpa?.creditsEarned?.toDoubleOrNull() ?: 0.0
+        val gpaResult = M3EPredictorDerivation.predictGpaBreakdown(
+            courses = gpaCourses,
+            cumulativeCredits = cumulativeCredits,
+            publishedCgpa = publishedCgpa
+        )
+        M3EPredictedGpaBreakdown(
+            optimalSgpa = gpaResult.optimalSgpa ?: 0.0,
+            maximisableSgpa = gpaResult.maximisableSgpa ?: 0.0,
+            optimalCredits = gpaResult.optimalCredits,
+            maximisableCredits = gpaResult.maximisableCredits,
+            semesterCredits = gpaResult.semesterCredits,
+            optimalCgpa = gpaResult.optimalCgpa ?: 0.0,
+            desirableCgpa = gpaResult.desirableCgpa ?: 0.0,
+            optimalCgpaIsAnchor = gpaResult.optimalCgpaIsAnchor,
+            cumulativeCredits = gpaResult.cumulativeCredits
+        )
     }
 
     val state = M3EMarksPredictorState(
-        predictedGpa = predictedGpa ?: 0.0,
-        totalCreditsSimulated = predictorInputs.sumOf { it.credits },
-        courses = courseItems,
-        selectedCourseCode = selectedCourseCode,
+        gpa = gpaBreakdown,
+        courses = allCourses,
+        viewMode = viewMode,
+        activeCourseCode = activeCourseCode.takeIf { it.isNotBlank() },
+        isEditMode = isEditMode,
         isLoading = isLoading,
         errorMessage = when {
             isLoading -> null
-            predictorInputs.isEmpty() -> "No marks data is available for the selected semester."
-            predictedGpa == null -> "Not enough published grades to predict a GPA. Choose a target grade for at least one course."
+            allCourses.isEmpty() -> "No marks data is available for the selected semester."
             else -> null
         }
     )
+
+    // Build active course detail state when viewMode == "course"
+    val activeCourseDetailState = remember(
+        viewMode,
+        activeCourseCode,
+        rawCourses,
+        customCourses.toList(),
+        curveStats,
+        simulatedMarksMap.toMap(),
+        simulatedLabFatMap.toMap(),
+        targetGradesMap.toMap()
+    ) {
+        if (viewMode != "course" || activeCourseCode.isBlank()) null
+        else {
+            val enrolledCourse = rawCourses.firstOrNull { it.code == activeCourseCode }
+            if (enrolledCourse != null) {
+                val theoryHalf = enrolledCourse.halves.firstOrNull { it.half == "T" || !EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+                val labHalf = enrolledCourse.halves.firstOrNull { it.half == "L" || EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
+                val theoryCredits = theoryHalf?.credits?.toDoubleOrNull()
+                val labCredits = labHalf?.credits?.toDoubleOrNull()
+
+                val courseSims = simulatedMarksMap[activeCourseCode] ?: emptyMap()
+                val courseLabFat = simulatedLabFatMap[activeCourseCode]
+                val courseTargetGrade = targetGradesMap[activeCourseCode] ?: "A"
+
+                val rawAssessments = enrolledCourse.marks?.assessments.orEmpty().map { m ->
+                    val simulated = courseSims[m.name]
+                    val actualScored = m.score.toDoubleOrNull() ?: 0.0
+                    val effectiveScored = simulated ?: actualScored
+                    val maxMark = m.maxMark.toDoubleOrNull() ?: 0.0
+                    val weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0
+                    val effectiveWeightageMark = if (maxMark > 0.0) (effectiveScored / maxMark) * weightagePercent else (m.weightage.toDoubleOrNull() ?: 0.0)
+
+                    M3EAssessmentItem(
+                        title = m.name,
+                        maxMarks = maxMark,
+                        scoredMarks = effectiveScored,
+                        weightagePercent = weightagePercent,
+                        weightageMarks = effectiveWeightageMark,
+                        status = if (simulated != null) "Simulated" else m.status,
+                        component = m.component.orEmpty()
+                    )
+                }
+
+                // Inject pending Theory FAT & Lab FAT rows if not yet published by VTOP
+                val theoryAsms = rawAssessments.filter { !it.component.equals("Lab", ignoreCase = true) }
+                val labAsms = rawAssessments.filter { it.component.equals("Lab", ignoreCase = true) }
+                val hasTheoryFat = theoryAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
+                val theoryWeight = theoryAsms.sumOf { it.weightagePercent }
+                val hasLabFat = labAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
+                val labWeight = labAsms.sumOf { it.weightagePercent }
+
+                val assessments = rawAssessments.toMutableList().also { list ->
+                    if (!hasTheoryFat && theoryWeight in 1.0..99.9) {
+                        val fatTitle = "Final Assessment Test"
+                        val simScore = courseSims[fatTitle]
+                        val fatMax = 100.0
+                        val fatWeight = maxOf(10.0, 100.0 - theoryWeight)
+                        list.add(M3EAssessmentItem(
+                            title = fatTitle,
+                            maxMarks = fatMax,
+                            scoredMarks = simScore ?: 0.0,
+                            weightagePercent = fatWeight,
+                            weightageMarks = if (simScore != null) (simScore / fatMax) * fatWeight else 0.0,
+                            status = if (simScore != null) "Simulated" else "Pending",
+                            component = theoryAsms.firstOrNull()?.component ?: "Theory"
+                        ))
+                    }
+                    if (!hasLabFat && labWeight in 1.0..99.9) {
+                        val fatTitle = "Lab Final Assessment Test"
+                        val simScore = courseSims[fatTitle] ?: courseLabFat
+                        val fatMax = 50.0
+                        val fatWeight = maxOf(10.0, 100.0 - labWeight)
+                        list.add(M3EAssessmentItem(
+                            title = fatTitle,
+                            maxMarks = fatMax,
+                            scoredMarks = simScore ?: 0.0,
+                            weightagePercent = fatWeight,
+                            weightageMarks = if (simScore != null) (simScore / fatMax) * fatWeight else 0.0,
+                            status = if (simScore != null) "Simulated" else "Pending",
+                            component = "Lab"
+                        ))
+                    }
+                }
+
+                val internalResult = M3EPredictorDerivation.courseInternalMarks(assessments, theoryCredits, labCredits)
+                val courseCurve = curveStats[enrolledCourse.marks?.classNbr ?: enrolledCourse.classId]
+
+                val requiredFinalScore = if (assessments.isNotEmpty()) {
+                    val solverResult = M3EPredictorDerivation.solveCourseFat(
+                        targetGrade = courseTargetGrade,
+                        assessments = assessments,
+                        theoryCredits = theoryCredits,
+                        labCredits = labCredits,
+                        labFatScored = courseLabFat,
+                        classStats = courseCurve,
+                        courseSystem = enrolledCourse.courseSystem,
+                        courseType = enrolledCourse.type
+                    )
+                    solverResult.requiredFatRaw
+                } else null
+
+                M3ECourseDetailState(
+                    courseCode = enrolledCourse.code,
+                    courseTitle = enrolledCourse.title.takeIf { it.isNotBlank() } ?: enrolledCourse.code,
+                    credits = enrolledCourse.credits?.toDoubleOrNull()?.toInt(),
+                    courseType = enrolledCourse.type.takeIf { it.isNotBlank() } ?: "Theory Only",
+                    slot = enrolledCourse.slots.firstOrNull().orEmpty(),
+                    venue = enrolledCourse.venue.orEmpty(),
+                    facultyName = enrolledCourse.faculty.orEmpty(),
+                    internalScored = internalResult?.weightedScored ?: 0.0,
+                    internalMax = internalResult?.weightedMax ?: 0.0,
+                    assessments = assessments,
+                    components = internalResult?.components.orEmpty(),
+                    targetGrade = courseTargetGrade,
+                    requiredFinalScore = requiredFinalScore,
+                    labFatMark = courseLabFat,
+                    simulatedAssessments = courseSims,
+                    classStats = courseCurve,
+                    halves = enrolledCourse.halves,
+                    activeTab = CourseDetailTab.PREDICTOR
+                )
+            } else {
+                val custom = customCourses.firstOrNull { it.code == activeCourseCode }
+                if (custom != null) {
+                    val isEmbedded = custom.type == "ETL"
+                    val isLabOnly = custom.type == "LO"
+                    val theoryCredits = if (isLabOnly) 0.0 else if (isEmbedded) (custom.credits - 1.0).coerceAtLeast(1.0) else custom.credits.toDouble()
+                    val labCredits = if (isLabOnly) custom.credits.toDouble() else if (isEmbedded) 1.0 else 0.0
+                    val courseType = if (isEmbedded) "Embedded Theory" else if (isLabOnly) "Lab Only" else "Theory Only"
+
+                    val courseSims = simulatedMarksMap[activeCourseCode] ?: emptyMap()
+                    val courseLabFat = simulatedLabFatMap[activeCourseCode]
+                    val courseTargetGrade = targetGradesMap[activeCourseCode] ?: "A"
+
+                    val defaultAsms = defaultAssessmentsForType(custom.type)
+                    val assessments = defaultAsms.map { m ->
+                        val simulated = courseSims[m.title]
+                        val scored = simulated ?: m.scoredMarks
+                        val effectiveWeightageMark = if (m.maxMarks > 0.0) (scored / m.maxMarks) * m.weightagePercent else 0.0
+                        m.copy(
+                            scoredMarks = scored,
+                            weightageMarks = effectiveWeightageMark,
+                            status = if (simulated != null) "Simulated" else m.status
+                        )
+                    }
+
+                    val internalResult = M3EPredictorDerivation.courseInternalMarks(assessments, theoryCredits, labCredits)
+                    val requiredFinalScore = if (assessments.isNotEmpty()) {
+                        val solverResult = M3EPredictorDerivation.solveCourseFat(
+                            targetGrade = courseTargetGrade,
+                            assessments = assessments,
+                            theoryCredits = theoryCredits,
+                            labCredits = labCredits,
+                            labFatScored = courseLabFat,
+                            classStats = null,
+                            courseSystem = null,
+                            courseType = courseType
+                        )
+                        solverResult.requiredFatRaw
+                    } else null
+
+                    M3ECourseDetailState(
+                        courseCode = custom.code,
+                        courseTitle = custom.title,
+                        credits = custom.credits,
+                        courseType = courseType,
+                        slot = "",
+                        venue = "",
+                        facultyName = "Custom Subject",
+                        internalScored = internalResult?.weightedScored ?: 0.0,
+                        internalMax = internalResult?.weightedMax ?: 0.0,
+                        assessments = assessments,
+                        targetGrade = courseTargetGrade,
+                        requiredFinalScore = requiredFinalScore,
+                        labFatMark = courseLabFat,
+                        simulatedAssessments = courseSims,
+                        classStats = null,
+                        halves = emptyList(),
+                        activeTab = CourseDetailTab.PREDICTOR
+                    )
+                } else null
+            }
+        }
+    }
 
     AmazeM3ETheme(isDark = isDark) {
         M3EMarksPredictorScreen(
             state = state,
             onAction = { action ->
                 when (action) {
-                    is M3EMarksPredictorAction.SetCourseGrade -> gradesMap[action.courseCode] = action.grade
-                    is M3EMarksPredictorAction.SelectCourse -> selectedCourseCode = action.courseCode
-                    is M3EMarksPredictorAction.ResetAll -> gradesMap.clear()
-                    is M3EMarksPredictorAction.Refresh -> AppState.loadAllData()
+                    is M3EMarksPredictorAction.OpenCourse -> {
+                        activeCourseCode = action.courseCode
+                        viewMode = "course"
+                    }
+                    is M3EMarksPredictorAction.BackToList -> {
+                        viewMode = "list"
+                        activeCourseCode = ""
+                    }
+                    is M3EMarksPredictorAction.ToggleEditMode -> {
+                        isEditMode = action.enabled
+                    }
+                    is M3EMarksPredictorAction.ToggleCourseIgnored -> {
+                        if (ignoredCodes.contains(action.courseCode)) {
+                            ignoredCodes.remove(action.courseCode)
+                        } else {
+                            ignoredCodes.add(action.courseCode)
+                        }
+                    }
+                    is M3EMarksPredictorAction.AddCustomCourse -> {
+                        customCourses.add(
+                            M3ECustomCourseRecord(
+                                code = action.courseCode,
+                                title = action.courseTitle,
+                                type = action.courseType,
+                                credits = action.credits
+                            )
+                        )
+                        activeCourseCode = action.courseCode
+                        viewMode = "course"
+                    }
+                    is M3EMarksPredictorAction.DeleteCustomCourse -> {
+                        customCourses.removeAll { it.code == action.courseCode }
+                        simulatedMarksMap.remove(action.courseCode)
+                        simulatedLabFatMap.remove(action.courseCode)
+                        targetGradesMap.remove(action.courseCode)
+                        ignoredCodes.remove(action.courseCode)
+                        if (activeCourseCode == action.courseCode) {
+                            viewMode = "list"
+                            activeCourseCode = ""
+                        }
+                    }
+                    is M3EMarksPredictorAction.SetCourseGrade -> {
+                        targetGradesMap[action.courseCode] = action.grade
+                    }
+                    is M3EMarksPredictorAction.SelectCourse -> {
+                        activeCourseCode = action.courseCode
+                        viewMode = "course"
+                    }
+                    is M3EMarksPredictorAction.ResetAll -> {
+                        simulatedMarksMap.clear()
+                        simulatedLabFatMap.clear()
+                        targetGradesMap.clear()
+                        customCourses.clear()
+                        ignoredCodes.clear()
+                        viewMode = "list"
+                        activeCourseCode = ""
+                    }
+                    is M3EMarksPredictorAction.Refresh -> {
+                        AppState.loadAllData()
+                    }
                 }
             },
-            modifier = modifier
+            modifier = modifier,
+            activeCourseDetailState = activeCourseDetailState,
+            onCourseDetailAction = { action ->
+                when (action) {
+                    is M3ECourseDetailAction.SetAssessmentMark -> {
+                        val code = activeCourseCode
+                        if (code.isNotBlank()) {
+                            val currentSims = simulatedMarksMap[code]?.toMutableMap() ?: mutableMapOf()
+                            if (action.score != null) {
+                                currentSims[action.assessmentTitle] = action.score
+                            } else {
+                                currentSims.remove(action.assessmentTitle)
+                            }
+                            simulatedMarksMap[code] = currentSims
+                        }
+                    }
+                    is M3ECourseDetailAction.SetLabFatMark -> {
+                        val code = activeCourseCode
+                        if (code.isNotBlank()) {
+                            simulatedLabFatMap[code] = action.score
+                        }
+                    }
+                    is M3ECourseDetailAction.SetTargetGrade -> {
+                        val code = activeCourseCode
+                        if (code.isNotBlank()) {
+                            targetGradesMap[code] = action.grade
+                        }
+                    }
+                    is M3ECourseDetailAction.ResetSimulations -> {
+                        val code = activeCourseCode
+                        if (code.isNotBlank()) {
+                            simulatedMarksMap.remove(code)
+                            simulatedLabFatMap.remove(code)
+                        }
+                    }
+                    is M3ECourseDetailAction.Back -> {
+                        viewMode = "list"
+                        activeCourseCode = ""
+                    }
+                    else -> {}
+                }
+            },
+            onBack = {
+                if (viewMode == "course") {
+                    viewMode = "list"
+                    activeCourseCode = ""
+                } else {
+                    onBack()
+                }
+            }
         )
     }
 }

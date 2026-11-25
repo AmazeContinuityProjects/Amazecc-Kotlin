@@ -5,6 +5,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -37,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,6 +59,7 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -67,11 +71,15 @@ import com.amazecc.app.shared.domain.overhaul.M3EKohaHolding
 import com.amazecc.app.shared.ui.components.BOTTOM_NAV_PADDING
 import com.amazecc.app.shared.ui.m3e.components.M3EConnectedButtonGroup
 import com.amazecc.app.shared.ui.m3e.components.M3EDismissibleSheet
+import com.amazecc.app.shared.ui.m3e.components.M3ELoadingIndicator
 import com.amazecc.app.shared.ui.m3e.components.M3ESurfaceCard
 import com.amazecc.app.shared.ui.m3e.components.M3EWavyLinearProgress
 import com.amazecc.app.shared.ui.m3e.components.SurfaceContainerLevel
 import com.amazecc.app.shared.ui.m3e.theme.AmazeM3ETheme
 import com.amazecc.app.shared.ui.m3e.theme.M3ETheme
+import io.kamel.core.ExperimentalKamelApi
+import io.kamel.image.KamelImage
+import io.kamel.image.asyncPainterResource
 import org.jetbrains.compose.ui.tooling.preview.Preview
 
 /** A library book, mapped from either an issued [BookItem] or a Koha catalog hit. */
@@ -83,7 +91,8 @@ data class M3ELibraryBook(
     val dueDate: String? = null,
     val fineAmount: String? = null,
     val publisher: String? = null,
-    val isbn: String? = null
+    val isbn: String? = null,
+    val coverUrl: String? = null
 )
 
 /** Immutable, screen-owned state for [M3ELibrariesScreen]. */
@@ -133,7 +142,7 @@ sealed interface M3ELibrariesAction {
     data object SubmitLogin : M3ELibrariesAction
     data object ClearCredentials : M3ELibrariesAction
     data class RenewBook(val bookId: String) : M3ELibrariesAction
-    data class OpenBookDetail(val biblionumber: String) : M3ELibrariesAction
+    data class OpenBookDetail(val biblionumber: String, val coverUrl: String? = null) : M3ELibrariesAction
     data object DismissBookDetail : M3ELibrariesAction
     /** Load a zero-based catalog page; the host maps it to `offset = page * catalogPageSize`. */
     data class LoadCatalogPage(val page: Int) : M3ELibrariesAction
@@ -433,7 +442,7 @@ fun M3ELibrariesScreen(
                     val requester = resultFocusRequesters.getOrNull(index)
                     CatalogBookCard(
                         book = book,
-                        onOpen = { onAction(M3ELibrariesAction.OpenBookDetail(book.id)) },
+                        onOpen = { onAction(M3ELibrariesAction.OpenBookDetail(book.id, book.coverUrl)) },
                         modifier = Modifier
                             .then(requester?.let { Modifier.focusRequester(it) } ?: Modifier)
                             .onFocusChanged { if (it.isFocused) selectedResultIndex = index }
@@ -453,7 +462,7 @@ fun M3ELibrariesScreen(
                                         true
                                     }
                                     Key.Enter -> {
-                                        onAction(M3ELibrariesAction.OpenBookDetail(book.id))
+                                        onAction(M3ELibrariesAction.OpenBookDetail(book.id, book.coverUrl))
                                         true
                                     }
                                     else -> false
@@ -682,6 +691,62 @@ private fun libraryFieldColors(
     unfocusedLabelColor = colors.onSurfaceVariant
 )
 
+@OptIn(ExperimentalKamelApi::class)
+@Composable
+private fun BookCoverImage(
+    coverUrl: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop
+) {
+    val colors = M3ETheme.colors
+    val trimmedUrl = coverUrl?.trim()
+    if (!trimmedUrl.isNullOrBlank()) {
+        KamelImage(
+            resource = asyncPainterResource(data = trimmedUrl),
+            contentDescription = "Book cover",
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(colors.surfaceContainerHigh),
+            contentScale = contentScale,
+            onLoading = {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    M3ELoadingIndicator(size = 20.dp, color = colors.primary)
+                }
+            },
+            onFailure = {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                        contentDescription = null,
+                        tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        )
+    } else {
+        Box(
+            modifier = modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(colors.surfaceContainerHigh),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.MenuBook,
+                contentDescription = null,
+                tint = colors.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(24.dp)
+            )
+        }
+    }
+}
+
 @Composable
 private fun IssuedBookCard(
     book: M3ELibraryBook,
@@ -694,54 +759,68 @@ private fun IssuedBookCard(
         modifier = modifier.fillMaxWidth(),
         containerLevel = SurfaceContainerLevel.LOW
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = book.title,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            BookCoverImage(
+                coverUrl = book.coverUrl,
+                modifier = Modifier
+                    .width(52.dp)
+                    .height(76.dp)
             )
-            if (book.author.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "by ${book.author}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant
+                    text = book.title,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = colors.onSurface,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
+                if (book.author.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "Due: ${book.dueDate ?: "—"}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.onSurfaceVariant
+                        text = "by ${book.author}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
-                    if (!book.fineAmount.isNullOrBlank()) {
+                }
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
                         Text(
-                            text = "Fine: ${book.fineAmount}",
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                            color = colors.error
+                            text = "Due: ${book.dueDate ?: "—"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = colors.onSurfaceVariant
+                        )
+                        if (!book.fineAmount.isNullOrBlank()) {
+                            Text(
+                                text = "Fine: ${book.fineAmount}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = colors.error
+                            )
+                        }
+                    }
+                    ElevatedButton(
+                        onClick = onRenew,
+                        shape = CircleShape,
+                        colors = ButtonDefaults.elevatedButtonColors(
+                            containerColor = colors.primaryContainer,
+                            contentColor = colors.onPrimaryContainer
+                        )
+                    ) {
+                        Text(
+                            text = "Renew",
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
                         )
                     }
-                }
-                ElevatedButton(
-                    onClick = onRenew,
-                    shape = CircleShape,
-                    colors = ButtonDefaults.elevatedButtonColors(
-                        containerColor = colors.primaryContainer,
-                        contentColor = colors.onPrimaryContainer
-                    )
-                ) {
-                    Text(
-                        text = "Renew",
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-                    )
                 }
             }
         }
@@ -834,38 +913,53 @@ private fun CatalogBookCard(
         containerLevel = SurfaceContainerLevel.LOW,
         onClick = onOpen
     ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = book.title,
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = colors.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            BookCoverImage(
+                coverUrl = book.coverUrl,
+                modifier = Modifier
+                    .width(52.dp)
+                    .height(76.dp)
             )
-            if (book.author.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "by ${book.author}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant
-                )
-            }
-            val secondary = listOfNotNull(book.publisher, book.isbn).joinToString(" · ")
-            if (secondary.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = secondary,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = colors.onSurfaceVariant,
-                    maxLines = 1,
+                    text = book.title,
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = colors.onSurface,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+                if (book.author.isNotBlank()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "by ${book.author}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                val secondary = listOfNotNull(book.publisher, book.isbn).joinToString(" · ")
+                if (secondary.isNotBlank()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = secondary,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
 }
 
 /** Detail sheet for a catalog hit. Every value comes from the real Koha detail response. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun BookDetailDialog(
     detail: M3EKohaBookDetail?,
@@ -885,55 +979,133 @@ private fun BookDetailDialog(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 520.dp)
+                .heightIn(max = 560.dp)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
                 .padding(bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-                if (isLoading) {
+            if (isLoading) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    M3ELoadingIndicator(size = 28.dp, color = colors.primary)
+                    Spacer(Modifier.width(12.dp))
                     Text(
                         text = "Loading book details...",
                         style = MaterialTheme.typography.bodyMedium,
                         color = colors.onSurfaceVariant
                     )
                 }
-                if (errorMessage != null) {
-                    Text(
-                        text = errorMessage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.error
+            }
+            if (errorMessage != null) {
+                Text(
+                    text = errorMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = colors.error
+                )
+            }
+            if (detail != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    BookCoverImage(
+                        coverUrl = detail.coverUrl,
+                        modifier = Modifier
+                            .width(84.dp)
+                            .height(124.dp),
+                        contentScale = ContentScale.Fit
                     )
-                }
-                if (detail != null) {
-                    val byline = listOfNotNull(
-                        detail.author.takeIf { it.isNotBlank() }?.let { "by $it" },
-                        detail.publisher.takeIf { it.isNotBlank() }
-                    ).joinToString(" · ")
-                    if (byline.isNotBlank()) {
-                        Text(text = byline, style = MaterialTheme.typography.bodySmall, color = colors.onSurfaceVariant)
-                    }
-                    val meta = listOfNotNull(
-                        detail.edition.takeIf { it.isNotBlank() }?.let { "Edition: $it" },
-                        detail.isbn.takeIf { it.isNotBlank() }?.let { "ISBN: $it" },
-                        detail.ddc.takeIf { it.isNotBlank() }?.let { "DDC: $it" }
-                    )
-                    meta.forEach {
-                        Text(text = it, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
-                    }
-                    val description = detail.description.takeIf { it.isNotBlank() }
-                        ?: detail.summary.takeIf { it.isNotBlank() }
-                    if (description != null) {
-                        Text(text = description, style = MaterialTheme.typography.bodyMedium, color = colors.onSurface)
-                    }
-                    if (detail.subjects.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Text(
-                            text = "Subjects: ${detail.subjects.joinToString(", ")}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onSurfaceVariant
+                            text = detail.title,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = colors.onSurface
+                        )
+                        val byline = listOfNotNull(
+                            detail.author.takeIf { it.isNotBlank() }?.let { "by $it" },
+                            detail.publisher.takeIf { it.isNotBlank() }
+                        ).joinToString(" · ")
+                        if (byline.isNotBlank()) {
+                            Text(
+                                text = byline,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                val meta = listOfNotNull(
+                    detail.edition.takeIf { it.isNotBlank() }?.let { "Edition: $it" },
+                    detail.isbn.takeIf { it.isNotBlank() }?.let { "ISBN: $it" },
+                    detail.ddc.takeIf { it.isNotBlank() }?.let { "DDC: $it" }
+                )
+                if (meta.isNotEmpty()) {
+                    FlowRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        meta.forEach { tag ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = colors.surfaceContainerHigh
+                            ) {
+                                Text(
+                                    text = tag,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                val description = detail.description.takeIf { it.isNotBlank() }
+                    ?: detail.summary.takeIf { it.isNotBlank() }
+                if (description != null) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = colors.surfaceContainerLow,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = colors.onSurface,
+                            modifier = Modifier.padding(12.dp)
                         )
                     }
-                detail.holdings.forEach { holding -> HoldingRow(holding = holding) }
+                }
+
+                if (detail.subjects.isNotEmpty()) {
+                    Text(
+                        text = "Subjects: ${detail.subjects.joinToString(", ")}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+
+                if (detail.holdings.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "Holdings & Availability (${detail.holdings.size})",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = colors.onSurface
+                    )
+                    detail.holdings.forEach { holding ->
+                        HoldingRow(holding = holding)
+                    }
+                }
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -953,17 +1125,23 @@ private fun HoldingRow(holding: M3EKohaHolding, modifier: Modifier = Modifier) {
         holding.location.takeIf { it.isNotBlank() },
         holding.callNumber.takeIf { it.isNotBlank() }
     ).joinToString(" · ")
-    Column(modifier = modifier.fillMaxWidth()) {
-        if (label.isNotBlank()) {
-            Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.onSurface)
-        }
-        val status = listOfNotNull(
-            holding.status.takeIf { it.isNotBlank() },
-            holding.dueDate?.takeIf { it.isNotBlank() }?.let { "Due: $it" },
-            holding.notes.takeIf { it.isNotBlank() }
-        ).joinToString(" · ")
-        if (status.isNotBlank()) {
-            Text(text = status, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = colors.surfaceContainerLow,
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            if (label.isNotBlank()) {
+                Text(text = label, style = MaterialTheme.typography.labelMedium, color = colors.onSurface)
+            }
+            val status = listOfNotNull(
+                holding.status.takeIf { it.isNotBlank() },
+                holding.dueDate?.takeIf { it.isNotBlank() }?.let { "Due: $it" },
+                holding.notes.takeIf { it.isNotBlank() }
+            ).joinToString(" · ")
+            if (status.isNotBlank()) {
+                Text(text = status, style = MaterialTheme.typography.labelSmall, color = colors.onSurfaceVariant)
+            }
         }
     }
 }

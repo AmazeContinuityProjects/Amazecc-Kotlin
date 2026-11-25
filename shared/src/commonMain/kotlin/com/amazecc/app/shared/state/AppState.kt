@@ -148,7 +148,7 @@ object AppState {
     }
 
     val tabScreens: List<Screen>
-        get() = listOf(Screen.HOME) + _pinnedNavTabs.value
+        get() = (listOf(Screen.HOME) + _pinnedNavTabs.value.filter { it != Screen.HOME }).distinct()
 
     // Sync Notifications
     private val notificationService = com.amazecc.app.shared.services.NotificationService()
@@ -505,7 +505,7 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 try { Screen.valueOf(name) } catch (e: Exception) { null }
                 // D-136: MORE is a default pinned tab, so it must survive a reload like any
                 // other saved pin. HOME is always prepended by tabScreens and stays excluded.
-            }.filter { it != Screen.HOME && it != Screen.ATTENDANCE && it != Screen.LIBRARIES }
+            }.filter { it != Screen.HOME && it != Screen.ATTENDANCE && it != Screen.LIBRARIES }.distinct()
             if (tabs.isNotEmpty()) {
                 _pinnedNavTabs.value = tabs.take(4)
             }
@@ -1504,10 +1504,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                         syncModule(
                             name = "Attendance and CGPA",
                             fetch = { AmazeClient.getAcademicData(semesterId) },
-                            isSuccess = { it.attendance.error == null },
-                            errorMessage = { it.attendance.error },
+                            isSuccess = { it.attendance.success && it.attendance.error == null },
+                            errorMessage = { it.attendance.error ?: it.attendance.message },
                             update = {
-                                AppDataStore.upsertAttendance(semesterId, it.attendance)
+                                if (it.attendance.attendance?.isNotEmpty() == true) {
+                                    AppDataStore.upsertAttendance(semesterId, it.attendance)
+                                }
                                 if (it.marks?.error == null) {
                                     it.marks?.let { marks ->
                                         AppDataStore.upsertMarks(semesterId, marks)
@@ -1669,8 +1671,10 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                     val jobs = mutableListOf<kotlinx.coroutines.Deferred<SyncModuleResult>>()
                     if (SyncModule.ATTENDANCE in sweepModules) {
                         jobs += async {
-                            syncModule("Attendance", { AmazeClient.getAcademicData(sem) }, { it.attendance.error == null }, { it.attendance.error }) {
-                                AppDataStore.upsertAttendance(sem, it.attendance)
+                            syncModule("Attendance", { AmazeClient.getAcademicData(sem) }, { it.attendance.success && it.attendance.error == null }, { it.attendance.error ?: it.attendance.message }) {
+                                if (it.attendance.attendance?.isNotEmpty() == true) {
+                                    AppDataStore.upsertAttendance(sem, it.attendance)
+                                }
                                 if (it.marks?.error == null && it.marks != null) {
                                     AppDataStore.upsertMarks(sem, it.marks)
                                 }
@@ -1904,10 +1908,12 @@ private val _commandPaletteOpen = MutableStateFlow(false)
                 fgResults += syncModule(
                     name = "Attendance",
                     fetch = { AmazeClient.getAcademicData(sem) },
-                    isSuccess = { it.attendance.error == null },
-                    errorMessage = { it.attendance.error },
+                    isSuccess = { it.attendance.success && it.attendance.error == null },
+                    errorMessage = { it.attendance.error ?: it.attendance.message },
                     update = {
-                        AppDataStore.upsertAttendance(sem, it.attendance)
+                        if (it.attendance.attendance?.isNotEmpty() == true) {
+                            AppDataStore.upsertAttendance(sem, it.attendance)
+                        }
                         if (it.marks?.error == null) {
                             it.marks?.let { marks ->
                                 AppDataStore.upsertMarks(sem, marks)
@@ -3898,9 +3904,10 @@ fun updateMoodleData(data: MoodleRes?) {
     }
 
     fun setPinnedNavTabs(tabs: List<Screen>) {
-        if (tabs.size <= 4) {
-            _pinnedNavTabs.value = tabs
-            SettingsManager.setString(SettingsManager.KEY_NAVBAR_ITEMS, tabs.joinToString(",") { it.name })
+        val unique = tabs.filter { it != Screen.HOME }.distinct()
+        if (unique.size <= 4) {
+            _pinnedNavTabs.value = unique
+            SettingsManager.setString(SettingsManager.KEY_NAVBAR_ITEMS, unique.joinToString(",") { it.name })
         }
     }
 

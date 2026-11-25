@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -710,7 +711,7 @@ private fun M3EGradeInsightSlide.toStatItem(): M3EStatItem = M3EStatItem(
  * in both appearances.
  */
 @Composable
-private fun gradeToneContainerAndOn(tone: M3EGradeTone): Pair<Color, Color> {
+internal fun gradeToneContainerAndOn(tone: M3EGradeTone): Pair<Color, Color> {
     val colors = M3ETheme.colors
     return when (tone) {
         M3EGradeTone.AMBER -> colors.warningContainer to colors.onWarningContainer
@@ -754,20 +755,24 @@ private fun gradePointColor(tone: M3EGradePointTone?): Color {
 }
 
 @Composable
-private fun M3EGradeToneBadge(
+internal fun M3EGradeToneBadge(
     text: String,
     tone: M3EGradeTone,
     modifier: Modifier = Modifier
 ) {
     val (container, foreground) = gradeToneContainerAndOn(tone)
     Box(
-        modifier = modifier.clip(RoundedCornerShape(10.dp)).background(container),
+        modifier = modifier
+            .defaultMinSize(minWidth = 36.dp, minHeight = 32.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(container)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text.ifBlank { "—" },
             color = foreground,
-            fontSize = 12.sp,
+            fontSize = 14.sp,
             fontWeight = FontWeight.Black,
             maxLines = 1
         )
@@ -917,7 +922,7 @@ private fun M3EGradeCourseRowItem(
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Box(
                 modifier = Modifier
@@ -933,14 +938,37 @@ private fun M3EGradeCourseRowItem(
                     modifier = Modifier.size(20.dp)
                 )
             }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = row.courseCode,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colors.primary,
-                    maxLines = 1
-                )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = row.courseCode,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.primary,
+                        maxLines = 1
+                    )
+                    if (row.isEmbedded) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.primaryContainer)
+                                .padding(horizontal = 5.dp, vertical = 1.5.dp)
+                        ) {
+                            Text(
+                                text = "T+L",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Black,
+                                color = colors.onPrimaryContainer
+                            )
+                        }
+                    }
+                }
                 Text(
                     text = row.courseTitle,
                     fontSize = 12.sp,
@@ -949,30 +977,30 @@ private fun M3EGradeCourseRowItem(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            if (row.isEmbedded) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(colors.primaryContainer)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(text = "T+L", fontSize = 9.sp, fontWeight = FontWeight.Black, color = colors.onPrimaryContainer)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (row.grandTotal.isNotBlank()) {
+                    Text(
+                        text = row.grandTotal,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onSurfaceVariant,
+                        maxLines = 1
+                    )
                 }
+                M3EGradeToneBadge(
+                    text = row.grade.ifBlank { "—" },
+                    tone = row.tone
+                )
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = colors.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
             }
-            Text(
-                text = row.grandTotal,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = colors.onSurfaceVariant,
-                maxLines = 1
-            )
-            M3EGradeToneBadge(text = row.grade.ifBlank { "—" }, tone = row.tone)
-            Icon(
-                imageVector = Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                tint = colors.onSurfaceVariant,
-                modifier = Modifier.size(16.dp)
-            )
         }
     }
 }

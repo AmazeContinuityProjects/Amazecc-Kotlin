@@ -197,10 +197,11 @@ fun M3ESyncNotification(
     }
 
     // Web parity: a device-offline banner wins; an explicit VTOP-down log line is the server-down
-    // case. "Using cached data" with no other signal is shown as the offline/saved-data case.
+    // case. An offline banner is only shown when there is an actual network failure/offline state,
+    // not merely when viewing previously synced cached data.
     val connectionProblem: String? = when {
         notice == M3ESyncNotice.VTOP_DOWN -> "vtop"
-        isUsingCachedData || !offlineCacheStatus.isNullOrBlank() -> "offline"
+        notice == M3ESyncNotice.OFFLINE || !offlineCacheStatus.isNullOrBlank() -> "offline"
         else -> null
     }
 
@@ -284,6 +285,7 @@ fun M3ESyncNotification(
             onDismiss = {
                 dismissedConnectionProblem = connectionProblem
                 connectionCheckMessage = null
+                AppState.clearServedFromCache()
             },
             modifier = Modifier.align(Alignment.TopCenter)
         )

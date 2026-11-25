@@ -240,25 +240,20 @@ fun App() {
                     // root M3E theme provider above (D-114), not here.
                     Box(modifier = Modifier.fillMaxSize()) {
                         val tabList = AppState.tabScreens
-                        AnimatedContent(
-                            targetState = currentScreen,
-                            transitionSpec = {
-                                if (targetState in tabList && initialState in tabList) {
-                                    tabSwitchSpec
-                                } else {
-                                    fadeIn() togetherWith fadeOut()
-                                }
-                            }
-                        ) { targetScreen ->
-                        if (targetScreen in tabList) {
+                        val isTabScreen = currentScreen in tabList
+                        if (isTabScreen) {
                             MainTabPager(
                                 tabScreens = tabList,
-                                currentScreen = targetScreen,
+                                currentScreen = currentScreen,
                                 onScreenChange = { AppState.navigateTo(it) },
                                 academicsContent = academicsContent
                             )
                         } else {
-                            when (targetScreen) {
+                            AnimatedContent(
+                                targetState = currentScreen,
+                                transitionSpec = { fadeIn() togetherWith fadeOut() }
+                            ) { targetScreen ->
+                                when (targetScreen) {
                                 Screen.SPLASH -> M3ESplashScreen()
                                 Screen.LOGIN -> M3ELoginScreen()
                                 Screen.ONBOARDING -> OnboardingScreen()

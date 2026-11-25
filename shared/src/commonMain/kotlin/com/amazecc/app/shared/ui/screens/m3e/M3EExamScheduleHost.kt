@@ -66,6 +66,7 @@ fun M3EExamScheduleHost(modifier: Modifier = Modifier) {
     LaunchedEffect(selectedExamSemId) {
         loadError = null
         scheduleRes = AmazeClient.fallbackCachedExamSchedule(selectedExamSemId)
+        AppState.clearServedFromCache()
     }
 
     // Fetching is strictly user-initiated via the Refresh action.

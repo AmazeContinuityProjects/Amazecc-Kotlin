@@ -2,6 +2,7 @@ package com.amazecc.app.shared.domain.overhaul
 
 import androidx.compose.runtime.Immutable
 import com.amazecc.app.shared.domain.Attendance
+import com.amazecc.app.shared.domain.ClassStats
 import com.amazecc.app.shared.domain.EmbeddedCourseHalf
 import com.amazecc.app.shared.domain.FreeClassroomBlockSummary
 import com.amazecc.app.shared.domain.FreeClassroomPeriodOption
@@ -271,7 +272,17 @@ data class M3EAssessmentItem(
     val scoredMarks: Double,
     val weightagePercent: Double,
     val weightageMarks: Double,
-    val status: String = ""
+    val status: String = "",
+    val component: String = ""
+)
+
+data class M3EComponentBreakdown(
+    val componentTitle: String,
+    val componentCode: String,
+    val credits: Double?,
+    val scoredMarks: Double,
+    val maxMarks: Double,
+    val assessments: List<M3EAssessmentItem>
 )
 
 data class M3EAcademicCourse(
@@ -284,6 +295,7 @@ data class M3EAcademicCourse(
     val internalScored: Double = 0.0,
     val internalMax: Double = 0.0,
     val assessments: List<M3EAssessmentItem> = emptyList(),
+    val components: List<M3EComponentBreakdown> = emptyList(),
     val attendancePct: Double? = null,
     /** Semester this course belongs to, for the unified hub's cross-semester grouping. */
     val semesterLabel: String = "",
@@ -368,6 +380,7 @@ data class M3ECourseDetailState(
     val classAverage: Double? = null,
     val classMax: Double? = null,
     val assessments: List<M3EAssessmentItem> = emptyList(),
+    val components: List<M3EComponentBreakdown> = emptyList(),
     val syllabusUnits: List<M3ECourseSyllabusUnit> = emptyList(),
     val targetGrade: String = "A",
     val requiredFinalScore: Double? = null,
@@ -384,11 +397,18 @@ data class M3ECourseDetailState(
     val standaloneAttendance: Attendance? = null,
     val courseSlots: List<String> = emptyList(),
     val gradeHistory: List<M3ECourseGradeTerm> = emptyList(),
+    val classStats: ClassStats? = null,
+    val simulatedAssessments: Map<String, Double> = emptyMap(),
+    val labFatMark: Double? = null,
+    val theoryFatMark: Double? = null,
 )
 
 sealed interface M3ECourseDetailAction {
     data class SelectTab(val tab: CourseDetailTab) : M3ECourseDetailAction
     data class SetTargetGrade(val grade: String) : M3ECourseDetailAction
+    data class SetAssessmentMark(val assessmentTitle: String, val score: Double?) : M3ECourseDetailAction
+    data class SetLabFatMark(val score: Double?) : M3ECourseDetailAction
+    data object ResetSimulations : M3ECourseDetailAction
     data object DownloadSyllabus : M3ECourseDetailAction
     data object OpenQBank : M3ECourseDetailAction
     data object Refresh : M3ECourseDetailAction
@@ -420,7 +440,11 @@ data class M3EFacultyMember(
     val isMyFaculty: Boolean = false,
     val timetable: List<M3EFacultyTimetableSlot> = emptyList(),
     val isCurrentlyTeaching: Boolean = false,
-    val currentSlotInfo: String? = null  // "Now: CSE3001 in SJT-512"
+    val currentSlotInfo: String? = null,  // "Now: CSE3001 in SJT-512"
+    val employeeId: String? = null,
+    val imageUrl: String? = null,
+    val wPct: Int? = null,
+    val reviewCount: Int = 0
 )
 
 data class M3EFacultyState(
@@ -536,23 +560,66 @@ data class M3ECoursePredictionItem(
     val courseCode: String,
     val courseTitle: String,
     val credits: Int,
-    val internalScored: Double,
-    val internalMax: Double,
-    val selectedGrade: String,
-    val requiredFatMark: Double?,
-    val tone: M3ECardTone
+    val courseType: String = "Theory Only",
+    val typeLabel: String = "TO", // "TO", "LO", "ETL"
+    val internalScored: Double = 0.0,
+    val internalMax: Double = 0.0,
+    val pointsLost: Double = 0.0,
+    val predictedGrade: String? = null,
+    val maximisableGrade: String = "S",
+    val tone: M3ECardTone = M3ECardTone.NEUTRAL,
+    val isCustom: Boolean = false,
+    val isIgnored: Boolean = false,
+    val selectedGrade: String = "",
+    val requiredFatMark: Double? = null
+)
+
+data class M3EPredictedGpaBreakdown(
+    val optimalSgpa: Double = 0.0,
+    val maximisableSgpa: Double = 0.0,
+    val optimalCredits: Int = 0,
+    val maximisableCredits: Int = 0,
+    val semesterCredits: Int = 0,
+    val optimalCgpa: Double? = null,
+    val desirableCgpa: Double? = null,
+    val optimalCgpaIsAnchor: Boolean = false,
+    val cumulativeCredits: Double = 0.0
+)
+
+data class M3ECustomCourseRecord(
+    val code: String,
+    val title: String,
+    val type: String = "ETL", // "ETL", "TO", "LO"
+    val credits: Int = 4
 )
 
 data class M3EMarksPredictorState(
-    val predictedGpa: Double,
-    val totalCreditsSimulated: Int,
-    val courses: List<M3ECoursePredictionItem>,
-    val selectedCourseCode: String? = null,
+    val gpa: M3EPredictedGpaBreakdown = M3EPredictedGpaBreakdown(),
+    val courses: List<M3ECoursePredictionItem> = emptyList(),
+    val viewMode: String = "list", // "list" | "course"
+    val activeCourseCode: String? = null,
+    val isEditMode: Boolean = false,
     val isLoading: Boolean = false,
     val errorMessage: String? = null
-)
+) {
+    // Backwards-compatibility getters
+    val predictedGpa: Double get() = gpa.optimalSgpa
+    val totalCreditsSimulated: Int get() = gpa.optimalCredits
+    val selectedCourseCode: String? get() = activeCourseCode
+}
 
 sealed interface M3EMarksPredictorAction {
+    data class OpenCourse(val courseCode: String) : M3EMarksPredictorAction
+    data object BackToList : M3EMarksPredictorAction
+    data class ToggleEditMode(val enabled: Boolean) : M3EMarksPredictorAction
+    data class ToggleCourseIgnored(val courseCode: String) : M3EMarksPredictorAction
+    data class AddCustomCourse(
+        val courseCode: String,
+        val courseTitle: String,
+        val courseType: String,
+        val credits: Int
+    ) : M3EMarksPredictorAction
+    data class DeleteCustomCourse(val courseCode: String) : M3EMarksPredictorAction
     data class SetCourseGrade(val courseCode: String, val grade: String) : M3EMarksPredictorAction
     data class SelectCourse(val courseCode: String) : M3EMarksPredictorAction
     data object ResetAll : M3EMarksPredictorAction
@@ -1747,7 +1814,7 @@ enum class M3ESubScreen(val label: String, val category: String, val description
     STUDENT_REPORT("Academic Report", "Academics", "Student profile, performance, credits and real exports"),
 
     HOSTEL("Hostel & Mess", "Campus Life", "Room details, block info and monthly mess menus"),
-    TRANSPORT("Bus Routes & Transit", "Campus Life", "Shuttle timings, pickup points and routes"),
+    TRANSPORT("Bus Routes & Transit", "Campus Life", "Shuttle timings, pickup points, transport and routes"),
     CAB_SHARE("Cab Share Pool", "Campus Life", "Split rides to airport, railway stations and city"),
     FREE_CLASSROOMS("Free Classrooms", "Campus Life", "Locate empty lecture halls and labs right now"),
     PAYMENTS("Fee Payments & Receipts", "Campus Life", "Online payments and historical receipts"),
@@ -1806,7 +1873,8 @@ data class M3EKohaBookDetail(
     val summary: String = "",
     val subjects: List<String> = emptyList(),
     val ddc: String = "",
-    val holdings: List<M3EKohaHolding> = emptyList()
+    val holdings: List<M3EKohaHolding> = emptyList(),
+    val coverUrl: String? = null
 )
 
 // ==========================================

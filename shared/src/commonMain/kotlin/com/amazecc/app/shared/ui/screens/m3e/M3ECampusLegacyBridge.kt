@@ -380,7 +380,27 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
                             }
                         }
                     }
-                    is M3ELibrariesAction.OpenBookDetail -> AppState.openKohaBookDetail(action.biblionumber)
+                    is M3ELibrariesAction.OpenBookDetail -> {
+                        bookDetail = null
+                        detailErrorMessage = null
+                        isDetailLoading = true
+                        scope.launch {
+                            try {
+                                val res = withContext(Dispatchers.Default) { AmazeClient.getKohaDetail(action.biblionumber) }
+                                if (res.success && res.book != null) {
+                                    bookDetail = res.book.toM3EKohaBookDetail(action.coverUrl)
+                                } else {
+                                    detailErrorMessage = res.message?.takeIf { it.isNotBlank() }
+                                        ?: res.error?.takeIf { it.isNotBlank() }
+                                        ?: "Could not load book details"
+                                }
+                            } catch (e: Exception) {
+                                detailErrorMessage = e.message ?: "Could not load book details"
+                            } finally {
+                                isDetailLoading = false
+                            }
+                        }
+                    }
                     M3ELibrariesAction.DismissBookDetail -> {
                         bookDetail = null
                         detailErrorMessage = null
@@ -401,35 +421,71 @@ fun M3ELibrariesScreenHost(modifier: Modifier = Modifier) {
     }
 }
 
-private fun BookItem.toM3ELibraryBook() = M3ELibraryBook(
-    id = bookId,
-    title = title,
-    author = author.orEmpty(),
-    dueDate = dueDate,
-    fineAmount = fineAmount
-)
+private fun String.unescapeKohaHtml(): String = this
+    .replace("&quot;", "\"")
+    .replace("&#39;", "'")
+    .replace("&apos;", "'")
+    .replace("&amp;", "&")
+    .replace("&lt;", "<")
+    .replace("&gt;", ">")
 
-private fun KohaBook.toM3ELibraryBook() = M3ELibraryBook(
-    id = biblionumber,
-    title = title,
-    author = author,
-    publisher = publisher.takeIf { it.isNotBlank() },
-    isbn = isbn.takeIf { it.isNotBlank() }
-)
+private fun BookItem.toM3ELibraryBook(): M3ELibraryBook {
+    val cleanIsbn = isbn?.trim()?.replace("-", "")?.replace(" ", "")?.filter { it.isDigit() || it == 'X' || it == 'x' }
+    val cover = cleanIsbn?.takeIf { it.isNotBlank() }?.let {
+        "https://books.google.com/books/content?vid=isbn$it&printsec=frontcover&img=1&zoom=1"
+    } ?: cleanIsbn?.takeIf { it.isNotBlank() }?.let { "https://covers.openlibrary.org/b/isbn/$it-M.jpg" }
+    return M3ELibraryBook(
+        id = bookId,
+        title = title.unescapeKohaHtml(),
+        author = author?.unescapeKohaHtml().orEmpty(),
+        dueDate = dueDate,
+        fineAmount = fineAmount,
+        publisher = null,
+        isbn = isbn,
+        coverUrl = cover
+    )
+}
 
-private fun KohaDetailBook.toM3EKohaBookDetail() = M3EKohaBookDetail(
-    biblionumber = biblionumber,
-    title = title,
-    author = author,
-    publisher = publisher,
-    edition = edition,
-    isbn = isbn,
-    description = description,
-    summary = summary,
-    subjects = subjects,
-    ddc = ddc,
-    holdings = holdings.map { it.toM3EKohaHolding() }
-)
+private fun KohaBook.toM3ELibraryBook(): M3ELibraryBook {
+    val cleanIsbn = isbn.trim().replace("-", "").replace(" ", "").filter { it.isDigit() || it == 'X' || it == 'x' }
+    val cover = coverUrl.takeIf { it.isNotBlank() }
+        ?: cleanIsbn.takeIf { it.isNotBlank() }?.let {
+            "https://books.google.com/books/content?vid=isbn$it&printsec=frontcover&img=1&zoom=1"
+        }
+        ?: cleanIsbn.takeIf { it.isNotBlank() }?.let { "https://covers.openlibrary.org/b/isbn/$it-M.jpg" }
+    return M3ELibraryBook(
+        id = biblionumber,
+        title = title.unescapeKohaHtml(),
+        author = author.unescapeKohaHtml(),
+        publisher = publisher.takeIf { it.isNotBlank() }?.unescapeKohaHtml(),
+        isbn = isbn.takeIf { it.isNotBlank() },
+        coverUrl = cover
+    )
+}
+
+private fun KohaDetailBook.toM3EKohaBookDetail(fallbackCover: String? = null): M3EKohaBookDetail {
+    val cleanIsbn = isbn.trim().replace("-", "").replace(" ", "").filter { it.isDigit() || it == 'X' || it == 'x' }
+    val cover = coverUrl.takeIf { it.isNotBlank() }
+        ?: fallbackCover?.takeIf { it.isNotBlank() }
+        ?: cleanIsbn.takeIf { it.isNotBlank() }?.let {
+            "https://books.google.com/books/content?vid=isbn$it&printsec=frontcover&img=1&zoom=1"
+        }
+        ?: cleanIsbn.takeIf { it.isNotBlank() }?.let { "https://covers.openlibrary.org/b/isbn/$it-M.jpg" }
+    return M3EKohaBookDetail(
+        biblionumber = biblionumber,
+        title = title.unescapeKohaHtml(),
+        author = author.unescapeKohaHtml(),
+        publisher = publisher.unescapeKohaHtml(),
+        edition = edition,
+        isbn = isbn,
+        description = description,
+        summary = summary,
+        subjects = subjects,
+        ddc = ddc,
+        holdings = holdings.map { it.toM3EKohaHolding() },
+        coverUrl = cover
+    )
+}
 
 private fun KohaHolding.toM3EKohaHolding() = M3EKohaHolding(
     barcode = barcode,

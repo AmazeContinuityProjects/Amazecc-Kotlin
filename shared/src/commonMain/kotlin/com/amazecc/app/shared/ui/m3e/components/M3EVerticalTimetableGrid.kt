@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
@@ -106,7 +107,7 @@ fun M3EVerticalTimetableGrid(
                             RoundedCornerShape(16.dp)
                         )
                         .clickable { onSelectDay(index) }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -120,8 +121,11 @@ fun M3EVerticalTimetableGrid(
                             color = dayContent
                         )
                         Text(
-                            text = "${day.slots.size} classes",
+                            text = "${day.slots.size} ${if (day.slots.size == 1) "class" else "classes"}",
                             fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false,
                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                             color = dayContent.copy(alpha = 0.85f)
                         )
@@ -531,7 +535,7 @@ private fun M3EVerticalCompactList(
                             RoundedCornerShape(16.dp)
                         )
                         .clickable { onSelectDay(index) }
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
@@ -545,8 +549,11 @@ private fun M3EVerticalCompactList(
                             color = if (isSelected) colors.onPrimary else colors.onSurface
                         )
                         Text(
-                            text = "${day.slots.size} classes",
+                            text = "${day.slots.size} ${if (day.slots.size == 1) "class" else "classes"}",
                             fontSize = 10.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            softWrap = false,
                             color = (if (isSelected) colors.onPrimary else colors.onSurface).copy(alpha = 0.85f)
                         )
                     }

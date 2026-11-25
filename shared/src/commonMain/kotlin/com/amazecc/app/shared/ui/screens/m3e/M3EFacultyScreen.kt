@@ -5,7 +5,9 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.ExpandLess
@@ -33,6 +36,8 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Phone
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -42,12 +47,23 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.amazecc.app.shared.api.AmazeClient
+import com.amazecc.app.shared.state.AppState
+import com.amazecc.app.shared.utils.toImageBitmap
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyAction
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyMember
 import com.amazecc.app.shared.domain.overhaul.M3EFacultyState
@@ -72,6 +88,15 @@ fun M3EFacultyScreen(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    var reviewSheetFaculty by remember { mutableStateOf<M3EFacultyMember?>(null) }
+
+    LaunchedEffect(reviewSheetFaculty != null) {
+        if (reviewSheetFaculty != null) AppState.pushOverlay(FACULTY_REVIEW_OVERLAY_ID)
+        else AppState.popOverlay(FACULTY_REVIEW_OVERLAY_ID)
+    }
+    DisposableEffect(Unit) {
+        onDispose { AppState.popOverlay(FACULTY_REVIEW_OVERLAY_ID) }
+    }
 
     Box(
         modifier = modifier
@@ -189,22 +214,83 @@ fun M3EFacultyScreen(
                     }
                 }
             } else {
-                items(
-                    items = state.filteredFaculty,
-                    key = { it.id }
-                ) { faculty ->
-                    val isExpanded = state.expandedFacultyId == faculty.id
-                    M3EFacultyCard(
-                        faculty = faculty,
-                        isExpanded = isExpanded,
-                        onToggleExpand = { onAction(M3EFacultyAction.ToggleExpand(faculty.id)) },
-                        onCopyEmail = { onAction(M3EFacultyAction.CopyEmail(faculty.email)) }
-                    )
+                val myFaculties = state.filteredFaculty.filter { it.isMyFaculty }
+                val otherFaculties = state.filteredFaculty.filter { !it.isMyFaculty }
+
+                if (myFaculties.isNotEmpty()) {
+                    item(key = "section_my_faculty") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Your course faculties (${myFaculties.size})",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.primary
+                            )
+                            Text(
+                                text = "Yours first",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colors.primary
+                            )
+                        }
+                    }
+                    items(
+                        items = myFaculties,
+                        key = { "my_${it.id}" }
+                    ) { faculty ->
+                        val isExpanded = state.expandedFacultyId == faculty.id
+                        M3EFacultyCard(
+                            faculty = faculty,
+                            isExpanded = isExpanded,
+                            onToggleExpand = { onAction(M3EFacultyAction.ToggleExpand(faculty.id)) },
+                            onCopyEmail = { onAction(M3EFacultyAction.CopyEmail(faculty.email)) },
+                            onOpenSchedule = { onAction(M3EFacultyAction.ToggleShowTimetable(faculty.id)) },
+                            onOpenReviews = { reviewSheetFaculty = faculty }
+                        )
+                    }
+                }
+
+                if (otherFaculties.isNotEmpty()) {
+                    item(key = "section_other_faculty") {
+                        Text(
+                            text = if (myFaculties.isNotEmpty()) "All other faculty (${otherFaculties.size})"
+                            else "All faculty (${otherFaculties.size})",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+                    items(
+                        items = otherFaculties,
+                        key = { it.id }
+                    ) { faculty ->
+                        val isExpanded = state.expandedFacultyId == faculty.id
+                        M3EFacultyCard(
+                            faculty = faculty,
+                            isExpanded = isExpanded,
+                            onToggleExpand = { onAction(M3EFacultyAction.ToggleExpand(faculty.id)) },
+                            onCopyEmail = { onAction(M3EFacultyAction.CopyEmail(faculty.email)) },
+                            onOpenSchedule = { onAction(M3EFacultyAction.ToggleShowTimetable(faculty.id)) },
+                            onOpenReviews = { reviewSheetFaculty = faculty }
+                        )
+                    }
                 }
             }
 
             // Bottom spacing for FAB / nav bar clearance (140dp)
             item(key = "bottom_spacer") { Spacer(Modifier.height(140.dp)) }
+        }
+
+        reviewSheetFaculty?.let { fac ->
+            M3EFacultyReviewSheet(
+                faculty = fac,
+                onDismiss = { reviewSheetFaculty = null }
+            )
         }
     }
 }
@@ -215,9 +301,27 @@ private fun M3EFacultyCard(
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
     onCopyEmail: () -> Unit,
+    onOpenSchedule: () -> Unit = {},
+    onOpenReviews: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    var reviewSheetFaculty by remember { mutableStateOf<M3EFacultyMember?>(null) }
+
+    LaunchedEffect(reviewSheetFaculty != null) {
+        if (reviewSheetFaculty != null) AppState.pushOverlay(FACULTY_REVIEW_OVERLAY_ID)
+        else AppState.popOverlay(FACULTY_REVIEW_OVERLAY_ID)
+    }
+    DisposableEffect(Unit) {
+        onDispose { AppState.popOverlay(FACULTY_REVIEW_OVERLAY_ID) }
+    }
+    var avatarBitmap by remember(faculty.imageUrl) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(faculty.imageUrl) {
+        val url = faculty.imageUrl
+        if (!url.isNullOrBlank()) {
+            avatarBitmap = AmazeClient.getImageBytes(url)?.toImageBitmap()
+        }
+    }
 
     M3ESurfaceCard(
         containerLevel = if (isExpanded) SurfaceContainerLevel.HIGH else SurfaceContainerLevel.LOW,
@@ -226,7 +330,7 @@ private fun M3EFacultyCard(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
 
-            // Top Row: Initials + Name/Designation + Expand chevron
+            // Top Row: Cached Photo/Initials + Name/Badges/Courses + Expand chevron
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -237,7 +341,7 @@ private fun M3EFacultyCard(
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    // Initials Avatar
+                    // Cached Photo or Initials Avatar
                     val initials = faculty.name.split(" ")
                         .filter { it.isNotBlank() }
                         .take(2)
@@ -254,25 +358,38 @@ private fun M3EFacultyCard(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = initials.ifBlank { "F" },
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (faculty.isCurrentlyTeaching) colors.onSecondaryContainer
-                            else colors.onPrimaryContainer
-                        )
+                        val bm = avatarBitmap
+                        if (bm != null) {
+                            Image(
+                                bitmap = bm,
+                                contentDescription = faculty.name,
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
+                        } else {
+                            Text(
+                                text = initials.ifBlank { "F" },
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (faculty.isCurrentlyTeaching) colors.onSecondaryContainer
+                                else colors.onPrimaryContainer
+                            )
+                        }
                     }
 
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             Text(
                                 text = faculty.name,
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = colors.onSurface
+                                color = colors.onSurface,
+                                modifier = Modifier.weight(1f, fill = false)
                             )
                             if (faculty.isMyFaculty) {
-                                Spacer(Modifier.width(6.dp))
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(50.dp))
@@ -280,23 +397,68 @@ private fun M3EFacultyCard(
                                         .padding(horizontal = 7.dp, vertical = 2.dp)
                                 ) {
                                     Text(
-                                        text = "My Faculty",
+                                        text = "Yours",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = colors.onPrimaryContainer
                                     )
                                 }
                             }
-                            // D-122: the removed "● In Class" chip claimed live presence with
-                            // no freshness signal or timestamp in M3EFacultyMember, so it could
-                            // not be qualified with "as of <time>". Real data never sets
-                            // isCurrentlyTeaching; show no presence claim rather than a false one.
+                            if (!faculty.employeeId.isNullOrBlank()) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(colors.surfaceContainerHighest)
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "#${faculty.employeeId}",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            val wPct = faculty.wPct
+                            if (wPct != null && faculty.reviewCount > 0) {
+                                val pillColor = when {
+                                    wPct >= 70 -> colors.success
+                                    wPct >= 40 -> colors.warning
+                                    else -> colors.error
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(5.dp))
+                                        .background(pillColor.copy(alpha = 0.14f))
+                                        .clickable { onOpenReviews() }
+                                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                                ) {
+                                    Text(
+                                        text = "$wPct% W (${faculty.reviewCount})",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = pillColor
+                                    )
+                                }
+                            }
                         }
-                        Text(
-                            text = "${faculty.designation} · ${faculty.school}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = colors.onSurfaceVariant
-                        )
+                        val coursePreview = if (faculty.coursesTaught.isNotEmpty()) {
+                            val shown = faculty.coursesTaught.take(3).joinToString(" · ")
+                            val rest = faculty.coursesTaught.size - 3
+                            if (rest > 0) "$shown · +$rest" else shown
+                        } else ""
+                        val subtitle = listOfNotNull(
+                            faculty.designation.takeIf { it.isNotBlank() },
+                            faculty.school.takeIf { it.isNotBlank() && it != "All" },
+                            coursePreview.takeIf { it.isNotBlank() }
+                        ).joinToString(" · ")
+                        if (subtitle.isNotBlank()) {
+                            Text(
+                                text = subtitle,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.onSurfaceVariant
+                            )
+                        }
                     }
                 }
 
@@ -307,56 +469,64 @@ private fun M3EFacultyCard(
                 )
             }
 
-            // Cabin & Email quick-info row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            // Cabin & Email quick-info row (only when at least one is published)
+            if (faculty.cabin.isNotBlank() || faculty.email.isNotBlank()) {
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MeetingRoom,
-                        contentDescription = null,
-                        tint = colors.primary,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Text(
-                        text = faculty.cabin,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = colors.onSurface
-                    )
-                }
+                    if (faculty.cabin.isNotBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.MeetingRoom,
+                                contentDescription = null,
+                                tint = colors.primary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Text(
+                                text = faculty.cabin,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.onSurface
+                            )
+                        }
+                    } else {
+                        Spacer(Modifier.width(1.dp))
+                    }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Email,
-                        contentDescription = null,
-                        tint = colors.onSurfaceVariant,
-                        modifier = Modifier.size(13.dp)
-                    )
-                    Text(
-                        text = faculty.email,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = colors.primary,
-                        modifier = Modifier.padding(end = 2.dp)
-                    )
-                    IconButton(
-                        onClick = { onCopyEmail() },
-                        modifier = Modifier.size(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.ContentCopy,
-                            contentDescription = "Copy Email",
-                            tint = colors.onSurfaceVariant,
-                            modifier = Modifier.size(13.dp)
-                        )
+                    if (faculty.email.isNotBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Email,
+                                contentDescription = null,
+                                tint = colors.onSurfaceVariant,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Text(
+                                text = faculty.email,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.primary,
+                                modifier = Modifier.padding(end = 2.dp)
+                            )
+                            IconButton(
+                                onClick = { onCopyEmail() },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.ContentCopy,
+                                    contentDescription = "Copy Email",
+                                    tint = colors.onSurfaceVariant,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -408,6 +578,111 @@ private fun M3EFacultyCard(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.4f))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilledTonalButton(
+                            onClick = onOpenSchedule,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Schedule,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("Schedule", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        FilledTonalButton(
+                            onClick = onOpenReviews,
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.AutoAwesome,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text("vitfac Reviews", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Vitfac Reviews & Lore (fetched lazily when expanded)
+                    val empId = faculty.employeeId
+                    if (!empId.isNullOrBlank()) {
+                        var vitfacDetail by remember(empId) { mutableStateOf<AmazeClient.VitfacProfileDetail?>(null) }
+                        LaunchedEffect(empId, isExpanded) {
+                            if (isExpanded && vitfacDetail == null) {
+                                vitfacDetail = AmazeClient.getVitfacProfile(empId)
+                            }
+                        }
+                        val detail = vitfacDetail
+                        if (detail != null && detail.reviews > 0) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(colors.surfaceContainerHighest.copy(alpha = 0.6f))
+                                    .padding(12.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    text = "VITFAC REVIEWS (${detail.reviews} REVIEWS · ${detail.wCount}W / ${detail.lCount}L)",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colors.onSurfaceVariant,
+                                    letterSpacing = 0.6.sp
+                                )
+                                if (detail.lecture != null || detail.da != null || detail.vibe != null) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        listOf(
+                                            "Lecture" to detail.lecture,
+                                            "DA / Grading" to detail.da,
+                                            "Vibe" to detail.vibe
+                                        ).forEach { (label, score) ->
+                                            if (score != null) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .weight(1f)
+                                                        .clip(RoundedCornerShape(8.dp))
+                                                        .background(colors.surface)
+                                                        .padding(vertical = 6.dp, horizontal = 8.dp)
+                                                ) {
+                                                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                                                        Text(label, fontSize = 10.sp, color = colors.onSurfaceVariant)
+                                                        Text("${((score * 10).toInt() / 10.0)}/5", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onSurface)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                if (detail.greenLore.isNotEmpty()) {
+                                    Text(
+                                        text = "✓ " + detail.greenLore.take(4).joinToString(" · ") { "${it.text} (${it.count})" },
+                                        fontSize = 11.sp,
+                                        color = colors.success,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                                if (detail.redLore.isNotEmpty()) {
+                                    Text(
+                                        text = "✕ " + detail.redLore.take(4).joinToString(" · ") { "${it.text} (${it.count})" },
+                                        fontSize = 11.sp,
+                                        color = colors.error,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
+                            }
+                        }
+                    }
 
                     // Intercom
                     faculty.intercom?.let { ext ->
@@ -490,6 +765,15 @@ private fun FacultyTimetableSection(
     modifier: Modifier = Modifier
 ) {
     val colors = M3ETheme.colors
+    var reviewSheetFaculty by remember { mutableStateOf<M3EFacultyMember?>(null) }
+
+    LaunchedEffect(reviewSheetFaculty != null) {
+        if (reviewSheetFaculty != null) AppState.pushOverlay(FACULTY_REVIEW_OVERLAY_ID)
+        else AppState.popOverlay(FACULTY_REVIEW_OVERLAY_ID)
+    }
+    DisposableEffect(Unit) {
+        onDispose { AppState.popOverlay(FACULTY_REVIEW_OVERLAY_ID) }
+    }
     val days = listOf("MON", "TUE", "WED", "THU", "FRI", "SAT")
     val slotsByDay = days.associateWith { day -> slots.filter { it.dayOfWeek == day } }
 

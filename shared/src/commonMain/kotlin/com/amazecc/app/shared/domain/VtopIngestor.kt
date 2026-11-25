@@ -120,11 +120,24 @@ object VtopIngestor {
     fun toLegacy(domain: DomainSnapshot): AppDataSnapshot {
         val creditsByCode = curriculumCredits(domain.academics.curriculum)
         val semesters = domain.academics.semesters.mapValues { (_, sem) ->
+            val storedCourses = mutableMapOf<String, StoredCourse>()
+            for ((_, c) in sem.courses) {
+                if (c.isEmbeddedMerged && c.halves.isNotEmpty()) {
+                    for (half in c.halves) {
+                        val isLab = half.half.equals("L", ignoreCase = true) ||
+                            EmbeddedLinkCode.isLabRow(half.type, half.slots.joinToString("+"))
+                        val key = if (isLab) "${c.code}(L)" else c.code
+                        storedCourses[key] = halfToStored(c, half, isLab, creditsByCode)
+                    }
+                } else {
+                    storedCourses[c.code] = courseToStored(c, creditsByCode)
+                }
+            }
             SemesterData(
                 semesterId = sem.id,
                 semesterName = sem.name,
                 gpa = sem.gpa,
-                courses = sem.courses.mapValues { (_, c) -> courseToStored(c, creditsByCode) },
+                courses = storedCourses,
                 // Exams are flattened across semesters in the domain shape, so they are regrouped
                 // by the key they were bucketed on.
                 exams = domain.schedule.exams
@@ -395,6 +408,94 @@ object VtopIngestor {
             )
         },
     )
+
+    private fun halfToStored(
+        course: Course,
+        half: EmbeddedCourseHalf,
+        isLab: Boolean,
+        creditsByCode: Map<String, String>
+    ): StoredCourse {
+        val halfCode = if (isLab) "${course.code}(L)" else course.code
+        val halfType = half.type.ifBlank { if (isLab) "Embedded Lab" else "Embedded Theory" }
+        return StoredCourse(
+            courseCode = halfCode,
+            courseTitle = half.title.ifBlank { course.title },
+            courseType = halfType,
+            category = course.category,
+            credits = half.credits ?: if (!isLab) creditsByCode[course.code] ?: course.credits else null,
+            classId = half.classId ?: course.classId,
+            slots = if (half.slots.isNotEmpty()) half.slots else course.slots,
+            venue = course.venue,
+            faculty = course.faculty,
+            courseSystem = course.courseSystem,
+            attendance = half.attendance?.let { a ->
+                StoredAttendance(
+                    attendedClasses = a.attended,
+                    totalClasses = a.total,
+                    attendancePercentage = a.percentage,
+                    logs = a.logs.map { AttendanceLog(it.date, it.status) },
+                )
+            } ?: (if (!isLab) course.attendance?.let { a ->
+                StoredAttendance(
+                    attendedClasses = a.attended,
+                    totalClasses = a.total,
+                    attendancePercentage = a.percentage,
+                    logs = a.logs.map { AttendanceLog(it.date, it.status) },
+                )
+            } else null),
+            marks = half.marks?.let { m ->
+                StoredMarks(
+                    classNbr = m.classNbr,
+                    assessments = m.assessments.map { a ->
+                        AssessmentItem(
+                            title = a.name,
+                            maxMark = a.maxMark,
+                            weightagePercent = a.weightagePercent,
+                            status = a.status,
+                            scoredMark = a.score,
+                            weightageMark = a.weightage,
+                            component = a.component,
+                        )
+                    },
+                    totalMark = m.total,
+                    maxMark = m.maxTotal,
+                    mergedFrom = m.mergedFrom,
+                )
+            } ?: course.marks?.let { m ->
+                StoredMarks(
+                    classNbr = m.classNbr,
+                    assessments = m.assessments.filter {
+                        if (isLab) it.component.equals("ELA", ignoreCase = true)
+                        else !it.component.equals("ELA", ignoreCase = true)
+                    }.map { a ->
+                        AssessmentItem(
+                            title = a.name,
+                            maxMark = a.maxMark,
+                            weightagePercent = a.weightagePercent,
+                            status = a.status,
+                            scoredMark = a.score,
+                            weightageMark = a.weightage,
+                            component = a.component,
+                        )
+                    },
+                    totalMark = m.total,
+                    maxMark = m.maxTotal,
+                    mergedFrom = m.mergedFrom,
+                )
+            },
+            grade = half.grade?.let { g ->
+                StoredGrade(
+                    grandTotal = g.grandTotal,
+                    grade = g.letter,
+                )
+            } ?: course.grade?.let { g ->
+                StoredGrade(
+                    grandTotal = g.grandTotal,
+                    grade = g.letter,
+                )
+            }
+        )
+    }
 
     private fun examFrom(
         semesterId: String,

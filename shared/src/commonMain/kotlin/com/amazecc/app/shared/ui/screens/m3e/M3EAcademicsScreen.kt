@@ -648,46 +648,204 @@ private fun M3EAcademicCourseCard(
                 ) {
                     HorizontalDivider(color = colors.outlineVariant.copy(alpha = 0.3f))
 
-                    Text(
-                        text = "Assessments Breakdown",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colors.onSurface
-                    )
-
-                    if (course.assessments.isEmpty()) {
+                    if (course.components.size > 1) {
                         Text(
-                            text = "No detailed assessments published yet.",
+                            text = "Assessments Breakdown by Component",
                             fontSize = 12.sp,
-                            color = colors.onSurfaceVariant
+                            fontWeight = FontWeight.Bold,
+                            color = colors.onSurface
                         )
-                    } else {
-                        course.assessments.forEach { assessment ->
-                            Row(
+
+                        course.components.forEachIndexed { index, component ->
+                            if (index > 0) {
+                                HorizontalDivider(
+                                    color = colors.outlineVariant.copy(alpha = 0.2f),
+                                    modifier = Modifier.padding(vertical = 4.dp)
+                                )
+                            }
+                            Column(
                                 modifier = Modifier.fillMaxWidth(),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                // Component Header Row with Title + Credits Pill and Component Subtotal
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        Text(
+                                            text = component.componentTitle,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = colors.primary
+                                        )
+                                        component.credits?.let { cr ->
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(
+                                                        colors.surfaceContainerLow,
+                                                        RoundedCornerShape(4.dp)
+                                                    )
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "${if (cr % 1.0 == 0.0) cr.toInt() else cr} Cr",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = colors.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        text = "${component.scoredMarks.toFixed(2)} / ${component.maxMarks.toFixed(2)}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.primary
+                                    )
+                                }
+
+                                // Assessments inside this component
+                                if (component.assessments.isEmpty()) {
+                                    Text(
+                                        text = "No assessments published yet for this component.",
+                                        fontSize = 11.sp,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                } else {
+                                    component.assessments.forEach { assessment ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(start = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column {
+                                                Text(
+                                                    text = assessment.title,
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = colors.onSurface
+                                                )
+                                                Text(
+                                                    text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
+                                                    fontSize = 10.sp,
+                                                    color = colors.onSurfaceVariant
+                                                )
+                                            }
+
+                                            Text(
+                                                text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
+                                                fontSize = 11.sp,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = colors.onSurface
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Weighted Internal Total Footer Card
+                        M3ESurfaceCard(
+                            containerLevel = SurfaceContainerLevel.LOW,
+                            cornerRadius = 8.dp,
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column {
                                     Text(
-                                        text = assessment.title,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Medium,
+                                        text = "Weighted Internal Total",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
                                         color = colors.onSurface
                                     )
-                                    Text(
-                                        text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
-                                        fontSize = 10.sp,
-                                        color = colors.onSurfaceVariant
-                                    )
+                                    val weightsSummary = course.components.mapNotNull { c ->
+                                        c.credits?.let { cr -> "${if (cr % 1.0 == 0.0) cr.toInt() else cr} ${c.componentCode}" }
+                                    }.joinToString(" + ")
+                                    if (weightsSummary.isNotBlank()) {
+                                        Text(
+                                            text = "Weighted by $weightsSummary credits",
+                                            fontSize = 9.sp,
+                                            color = colors.onSurfaceVariant
+                                        )
+                                    }
                                 }
-
                                 Text(
-                                    text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
+                                    text = "${course.internalScored.toFixed(2)} / ${course.internalMax.toFixed(2)}",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = colors.primary
+                                )
+                            }
+                        }
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Assessments Breakdown",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colors.onSurface
+                            )
+                            if (course.internalMax > 0.0) {
+                                Text(
+                                    text = "Total: ${course.internalScored.toFixed(2)} / ${course.internalMax.toFixed(2)}",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = colors.onSurface
+                                    color = colors.primary
                                 )
+                            }
+                        }
+
+                        if (course.assessments.isEmpty()) {
+                            Text(
+                                text = "No detailed assessments published yet.",
+                                fontSize = 12.sp,
+                                color = colors.onSurfaceVariant
+                            )
+                        } else {
+                            course.assessments.forEach { assessment ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = assessment.title,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = colors.onSurface
+                                        )
+                                        Text(
+                                            text = "Weightage: ${assessment.weightagePercent.toFixed(2)}%",
+                                            fontSize = 10.sp,
+                                            color = colors.onSurfaceVariant
+                                        )
+                                    }
+
+                                    Text(
+                                        text = "${assessment.scoredMarks.toFixed(2)} / ${assessment.maxMarks.toFixed(2)}",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = colors.onSurface
+                                    )
+                                }
                             }
                         }
                     }
