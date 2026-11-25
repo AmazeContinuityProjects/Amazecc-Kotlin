@@ -1,5 +1,9 @@
 [
   {
+    "title": "v3.1.1 — Local VTOP Scraper Parity, Predictor & UI Fixes (Nov 2026)",
+    "description": "Overhauled the on-device Local VTOP scraper to match modern VTOP tables: 10-column attendance table parsing, callStudentAttendanceDetailDisplay detail fetching, separate authorizedID vs authorizedIDX extraction, exam schedule semesterSubId, feedback warmup POST, CGPA payload fix, and contact/acknowledgement loading. Replaced the login engine toggle with a segmented Local/Remote switcher, added a global reCAPTCHA/captcha prompt overlay during background sync, fixed VIT statutory pass-floor and pending-assessment logic in the Marks Predictor, stacked Theory/Lab attendance rows, and improved free classroom slot overlap detection."
+  },
+  {
     "title": "v3.1.0 — Marks Predictor, UniCC Curves & Faculty Reviews (Nov 2026)",
     "description": "Integrated UniCC cohort statistics (mean, standard deviation, and student count normalized to 100-point scale) into the Marks Predictor and per-course FAT solver. Added Predicted & Maximisable grade/mark cards, segmented Locked/Pending/Lost progress bar, Predicted Grade Cutoffs (S–E), and editable pending Theory/Lab FAT rows. Rebuilt Faculty Directory from the FFCS report with your course faculties hoisted first, disk-cached vitfac catalog, cached faculty photos, weekly schedule sheet, and the vitfac Reviews popup pane (Lecture/DA/Vibe metrics, course filter, Green/Red flags). Fixed Lab-Only course credits fallback, embedded-course weighted averages, Grade History layout, and attendance sync empty-response protection."
   },
