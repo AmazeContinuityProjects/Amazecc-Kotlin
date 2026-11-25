@@ -5,6 +5,7 @@ import com.amazecc.app.shared.domain.overhaul.M3EAssessmentItem
 import com.amazecc.app.shared.domain.overhaul.M3ECardTone
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -175,5 +176,127 @@ class M3EPredictorDerivationTest {
         )!!
         assertEquals(52.5, scored, 0.001)
         assertEquals(60.0, max, 0.001)
+    }
+
+    @Test
+    fun pendingAssessmentsDoNotCountAsLostWeightWhileZeroPresentDoes() {
+        // SWARM-02: CAT-1 scored 24/30 (12/15 weight), CAT-2 is Pending (not lost), DA-1 is legitimate 0/10 (Present -> 10 lost)
+        val cat1 = M3EAssessmentItem(
+            title = "CAT-1",
+            maxMarks = 30.0,
+            scoredMarks = 24.0,
+            weightagePercent = 15.0,
+            weightageMarks = 12.0,
+            status = "Present"
+        )
+        val cat2Pending = M3EAssessmentItem(
+            title = "CAT-2",
+            maxMarks = 30.0,
+            scoredMarks = 0.0,
+            weightagePercent = 15.0,
+            weightageMarks = 0.0,
+            status = "Pending"
+        )
+        val daDashPending = M3EAssessmentItem(
+            title = "DA-1",
+            maxMarks = 10.0,
+            scoredMarks = 0.0,
+            weightagePercent = 10.0,
+            weightageMarks = 0.0,
+            status = "-"
+        )
+        val daLegitZero = M3EAssessmentItem(
+            title = "DA-2",
+            maxMarks = 10.0,
+            scoredMarks = 0.0,
+            weightagePercent = 10.0,
+            weightageMarks = 0.0,
+            status = "Present"
+        )
+
+        assertFalse(M3EPredictorDerivation.isPendingAssessment(cat1))
+        assertTrue(M3EPredictorDerivation.isPendingAssessment(cat2Pending))
+        assertTrue(M3EPredictorDerivation.isPendingAssessment(daDashPending))
+        assertFalse(M3EPredictorDerivation.isPendingAssessment(daLegitZero))
+
+        val metrics = M3EPredictorDerivation.calculateCoursePredictionMetrics(
+            listOf(cat1, cat2Pending, daDashPending, daLegitZero)
+        )
+        // Recorded: CAT-1 (12 scored, 3 lost) + DA-2 (0 scored, 10 lost) => 12 scored, 13 lost; Pending: 15+10=25 not lost.
+        assertEquals(12.0, metrics.currentScoredScaled, 0.001)
+        assertEquals(13.0, metrics.pointsLostScaled, 0.001)
+        assertEquals(87.0, metrics.maxPossibleScaled, 0.001)
+    }
+
+    @Test
+    fun onlyFatRemainsGatesFatSolverUntilAllOtherAssessmentsAreScored() {
+        // SWARM-05: CAT-2 is still Pending -> solver must be gated (onlyFatRemains = false)
+        val cat1 = M3EAssessmentItem("CAT-1", 50.0, 40.0, 15.0, 12.0, status = "Present", component = "ETH")
+        val cat2Pending = M3EAssessmentItem("CAT-2", 50.0, 0.0, 15.0, 0.0, status = "Pending", component = "ETH")
+        val fatPending = M3EAssessmentItem("Final Assessment Test", 100.0, 0.0, 40.0, 0.0, status = "Pending", component = "ETH")
+
+        assertFalse(M3EPredictorDerivation.onlyFatRemains(listOf(cat1, cat2Pending, fatPending)))
+        val gated = M3EPredictorDerivation.solveCourseFat("S", listOf(cat1, cat2Pending, fatPending))
+        assertFalse(gated.onlyFatRemains)
+        assertEquals("pending", gated.feasibility)
+        assertEquals(0.0, gated.requiredFatRaw, 0.001)
+
+        // Once CAT-2 has a legitimate 0.0 (Present), only FAT remains -> solver unlocks
+        val cat2Zero = cat2Pending.copy(status = "Present")
+        assertTrue(M3EPredictorDerivation.onlyFatRemains(listOf(cat1, cat2Zero, fatPending)))
+        val unlocked = M3EPredictorDerivation.solveCourseFat("A", listOf(cat1, cat2Zero, fatPending))
+        assertTrue(unlocked.onlyFatRemains)
+        assertTrue(unlocked.requiredFatRaw > 0.0)
+
+        // Embedded course: Lab FAT Pending blocks solver unless labFatScored is supplied
+        val labAsm = M3EAssessmentItem("Lab Assessment", 60.0, 50.0, 60.0, 50.0, status = "Present", component = "ELA")
+        val labFatPending = M3EAssessmentItem("Lab FAT", 50.0, 0.0, 40.0, 0.0, status = "Pending", component = "ELA")
+        val embeddedList = listOf(cat1, cat2Zero, fatPending, labAsm, labFatPending)
+        assertFalse(M3EPredictorDerivation.onlyFatRemains(embeddedList))
+        assertTrue(M3EPredictorDerivation.onlyFatRemains(embeddedList, labFatScored = 40.0))
+    }
+
+    @Test
+    fun statutoryPassFloorTheoryFatBelow40ForcesF() {
+        // SWARM-06 (§9.4): 60/60 internal + 35/100 Theory FAT (< 40%) = 74 total, but must be F!
+        val internals = M3EAssessmentItem("Internals", 60.0, 60.0, 60.0, 60.0, status = "Present", component = "ETH")
+        val fatLow = M3EAssessmentItem("Final Assessment Test", 100.0, 35.0, 40.0, 14.0, status = "Present", component = "ETH")
+
+        val metrics = M3EPredictorDerivation.calculateCoursePredictionMetrics(listOf(internals, fatLow))
+        assertEquals("F", metrics.optimalGrade)
+        assertEquals("F", metrics.maximisableGrade)
+        assertTrue(metrics.passIssues.any { it.contains("40%") })
+    }
+
+    @Test
+    fun statutoryPassFloorLabBelow50ForcesNAndWinsOverF() {
+        // SWARM-06 (§9.6 / §9.7): Theory FAT < 40% (F) AND Lab < 50% (N) => N wins over F
+        val theoryInternals = M3EAssessmentItem("Internals", 60.0, 60.0, 60.0, 60.0, status = "Present", component = "ETH")
+        val theoryFatLow = M3EAssessmentItem("Final Assessment Test", 100.0, 30.0, 40.0, 12.0, status = "Present", component = "ETH")
+        val labLow = M3EAssessmentItem("Lab Assessment", 100.0, 40.0, 100.0, 40.0, status = "Present", component = "ELA")
+
+        val metrics = M3EPredictorDerivation.calculateCoursePredictionMetrics(
+            assessments = listOf(theoryInternals, theoryFatLow, labLow),
+            theoryCredits = 3.0,
+            labCredits = 1.0
+        )
+        assertEquals("N", metrics.optimalGrade)
+        assertEquals("N", metrics.maximisableGrade)
+        assertEquals(M3ECardTone.CRITICAL, M3EPredictorDerivation.toneForGrade("N"))
+        assertTrue(metrics.passIssues.any { it.contains("50%") })
+
+        // Embedded solveCourseFat with Lab total < 50% reports impossible / N
+        val theoryFatPending = theoryFatLow.copy(scoredMarks = 0.0, weightageMarks = 0.0, status = "Pending")
+        val labAsm = M3EAssessmentItem("Lab Work", 60.0, 20.0, 60.0, 20.0, status = "Present", component = "ELA")
+        val labFat = M3EAssessmentItem("Lab FAT", 50.0, 10.0, 40.0, 8.0, status = "Present", component = "ELA")
+        val solver = M3EPredictorDerivation.solveCourseFat(
+            targetGrade = "A",
+            assessments = listOf(theoryInternals, theoryFatPending, labAsm, labFat),
+            theoryCredits = 3.0,
+            labCredits = 1.0
+        )
+        assertEquals("impossible", solver.feasibility)
+        assertFalse(solver.meetsVitPassFloor)
+        assertTrue(solver.feasibilityLabel.contains("N"))
     }
 }

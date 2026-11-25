@@ -34,6 +34,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -81,7 +82,7 @@ fun M3EAttendanceScreen(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            contentPadding = PaddingValues(start = 20.dp, top = 24.dp, end = 20.dp, bottom = 140.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // 1. Header — D-138: a real, expressive entry point into the separate bunk predictor.
@@ -238,11 +239,6 @@ fun M3EAttendanceScreen(
                         )
                     }
                 }
-            }
-
-            // Bottom Spacing for floating toolbar (twice nav bar height: 140dp)
-            item(key = "bottom_spacer") {
-                Spacer(Modifier.height(140.dp))
             }
         }
     }
@@ -415,37 +411,12 @@ private fun M3ECourseAttendanceCard(
                     )
                 }
 
-                // Headline Attendance % — a pair gets its two halves' own figures, never the
-                // 0.00% sentinel. Standalone cards keep their single published percentage.
+                // Headline Attendance % — a pair renders its halves in stacked rows below so narrow
+                // screens never crush two percentages side-by-side; standalone cards keep their
+                // single published percentage, and unpublished cards show a compact pill badge.
                 if (isPair) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        val theory = course.theoryPct
-                        val lab = course.labPct
-                        if (theory == null && lab == null) {
-                            Text(
-                                text = "Attendance not published",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Medium,
-                                color = statusColor
-                            )
-                        } else {
-                            theory?.let {
-                                Text(
-                                    text = "Theory ${it.toFixed(2, "%")}",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = statusColor
-                                )
-                            }
-                            lab?.let {
-                                Text(
-                                    text = "Lab ${it.toFixed(2, "%")}",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = statusColor
-                                )
-                            }
-                        }
+                    if (course.theoryPct == null && course.labPct == null) {
+                        UnpublishedBadge()
                     }
                 } else if (hasPublishedFigure) {
                     Text(
@@ -456,12 +427,7 @@ private fun M3ECourseAttendanceCard(
                     )
                 } else {
                     // No published figure: honest absence, never a fabricated 0.00%.
-                    Text(
-                        text = "Attendance not published",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = statusColor
-                    )
+                    UnpublishedBadge()
                 }
             }
 
@@ -473,25 +439,27 @@ private fun M3ECourseAttendanceCard(
                 color = colors.onSurface
             )
 
-            // Signature M3E Wavy Linear Progress Bar! A pair shows one bar per published half;
-            // an unpublished half gets no bar at all (a 0% bar would be a fabricated figure).
+            // Signature M3E Wavy Linear Progress Bar! A pair shows one labeled row + bar per
+            // published half; an unpublished half gets no bar at all (a 0% bar would be fabricated).
             if (isPair) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     course.theoryPct?.let { theory ->
-                        M3EWavyLinearProgress(
+                        EmbeddedHalfProgressRow(
+                            label = "Theory ${theory.toFixed(2, "%")}",
                             progress = (theory / 100.0).toFloat(),
-                            activeColor = statusColor,
+                            statusColor = statusColor,
                             trackColor = colors.surfaceContainerHighest,
-                            label = "Theory attendance",
+                            semanticsLabel = "Theory attendance",
                             safetyThreshold = targetPercentage / 100f
                         )
                     }
                     course.labPct?.let { lab ->
-                        M3EWavyLinearProgress(
+                        EmbeddedHalfProgressRow(
+                            label = "Lab ${lab.toFixed(2, "%")}",
                             progress = (lab / 100.0).toFloat(),
-                            activeColor = statusColor,
+                            statusColor = statusColor,
                             trackColor = colors.surfaceContainerHighest,
-                            label = "Lab attendance",
+                            semanticsLabel = "Lab attendance",
                             safetyThreshold = targetPercentage / 100f
                         )
                     }
@@ -507,7 +475,8 @@ private fun M3ECourseAttendanceCard(
             }
             // No published figure: deliberately no bar — a 0% bar would be a fabricated figure.
 
-            // Classes Count & Bunk Summary
+            // Classes Count & Bunk Summary (omit duplicate Theory/Lab summary when halves are shown)
+            val hasDisplayedHalves = isPair && (course.theoryPct != null || course.labPct != null)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -518,14 +487,62 @@ private fun M3ECourseAttendanceCard(
                     fontSize = 12.sp,
                     color = colors.onSurfaceVariant
                 )
-                Text(
-                    text = course.bunkSummary,
-                    fontSize = 12.sp,
-                    color = statusColor,
-                    fontWeight = FontWeight.Medium
-                )
+                if (!hasDisplayedHalves) {
+                    Text(
+                        text = course.bunkSummary,
+                        fontSize = 12.sp,
+                        color = statusColor,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun UnpublishedBadge() {
+    val colors = M3ETheme.colors
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(colors.surfaceContainerHighest)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    ) {
+        Text(
+            text = "Unpublished",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onSurfaceVariant,
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun EmbeddedHalfProgressRow(
+    label: String,
+    progress: Float,
+    statusColor: Color,
+    trackColor: Color,
+    semanticsLabel: String,
+    safetyThreshold: Float
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = label,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = statusColor,
+            maxLines = 1
+        )
+        M3EWavyLinearProgress(
+            progress = progress,
+            activeColor = statusColor,
+            trackColor = trackColor,
+            label = semanticsLabel,
+            safetyThreshold = safetyThreshold
+        )
     }
 }
 

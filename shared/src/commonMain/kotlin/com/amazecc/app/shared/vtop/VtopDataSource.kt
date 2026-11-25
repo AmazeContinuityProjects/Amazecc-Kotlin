@@ -1,5 +1,7 @@
 package com.amazecc.app.shared.vtop
 
+import com.amazecc.app.shared.model.AcknowledgementDocument
+import com.amazecc.app.shared.model.AcknowledgementInfo
 import com.amazecc.app.shared.model.AssessmentItem
 import com.amazecc.app.shared.model.ApaarIdRes
 import com.amazecc.app.shared.model.AttendanceItem
@@ -11,6 +13,7 @@ import com.amazecc.app.shared.model.CircularItem
 import com.amazecc.app.shared.model.CircularDownloadResult
 import com.amazecc.app.shared.model.CircularsRes
 import com.amazecc.app.shared.model.CategoryDetail
+import com.amazecc.app.shared.model.ContactEntry
 import com.amazecc.app.shared.model.CurriculumBasket
 import com.amazecc.app.shared.model.CurriculumCategory
 import com.amazecc.app.shared.model.CurriculumRes
@@ -36,6 +39,7 @@ import com.amazecc.app.shared.model.ProfileImagesRes
 import com.amazecc.app.shared.model.QcmViewRes
 import com.amazecc.app.shared.model.RegistrationScheduleRes
 import com.amazecc.app.shared.model.SemesterGradesRes
+import com.amazecc.app.shared.model.StudentIdentity
 import com.amazecc.app.shared.model.StudentProfile
 import com.amazecc.app.shared.model.StudentProfileRes
 import com.amazecc.app.shared.model.TimetableRes
@@ -266,6 +270,7 @@ object VtopDataSource {
     private const val PATH_TRANSPORT_TRACK = "/vtop/transport/trackMyBus"
     private const val PATH_OD_WARMUP = "/vtop/academics/common/getStudentOdDetails"
     private const val PATH_OD_SEARCH = "/vtop/searchStudentOdDetails"
+    private const val PATH_FEEDBACK_WARMUP = "/vtop/academics/common/FeedBackStatusStudent"
     private const val PATH_FEEDBACK_STATUS = "/vtop/processViewFeedBackStatus"
     private const val PATH_WISHLIST = "/vtop/academics/registration/wishlistRegPage"
     private const val PATH_HOD_DEAN = "/vtop/hrms/viewHodDeanDetails"
@@ -435,6 +440,12 @@ object VtopDataSource {
         return "authorizedID=$authorizedID&semesterSubId=$semesterId&_csrf=$csrf&x=${now()}"
     }
 
+    private fun cgpaBody(): String? {
+        val authorizedID = VtopSession.authorizedID.value?.takeIf { it.isNotBlank() } ?: return null
+        val csrf = VtopSession.csrf.value?.takeIf { it.isNotBlank() } ?: return null
+        return "authorizedID=$authorizedID&_csrf=$csrf&x=${now()}"
+    }
+
     // ── Timetable ───────────────────────────────────────────────────────────
 
     /** Course list from `processViewTimeTable`. Aligned with amazecc-api-hono `fetchTimeTable.ts`. */
@@ -450,7 +461,9 @@ object VtopDataSource {
             val slotVenue = result.cell(i, 7)
             val category = result.cell(i, 4)
             val isLab = slotVenue.trim().startsWith("L")
-            val baseCode = courseCell.split(" ").firstOrNull()?.trim() ?: courseCell.trim()
+            val baseCode = VtopCourseCode.base(courseCell).ifBlank {
+                courseCell.split(" ").firstOrNull()?.trim() ?: courseCell.trim()
+            }
             val honoCourseCode = if (isLab) "$baseCode(L)" else "$baseCode(T)"
 
             VtopCourse(
@@ -499,65 +512,184 @@ object VtopDataSource {
         val attended: Int,
         val total: Int,
         val percentage: String,
-        val viewLink: String?
+        val viewLink: String?,
+        val classId: String? = null,
+        val slotVenue: String? = null
     )
+
+    private data class AttendanceDetailResult(
+        val logs: List<AttendanceLog>,
+        val registrationDate: String? = null,
+        val attendanceDate: String? = null
+    )
+
+    private val TYPE_SUFFIX_RE = Regex(
+        "\\b(?:lab|theory|soft\\s*skill|embedded|only|project|seminar|virtual)\\b",
+        RegexOption.IGNORE_CASE
+    )
+    private val DASH_SPLIT_RE = Regex("\\s+-\\s+")
+    private val DETAIL_DATE_RE = Regex("^\\d{1,2}[-/][A-Za-z0-9]{2,3}[-/]\\d{2,4}")
+
+    private fun parseCourseDetail(raw: String): Triple<String, String, String> {
+        val parts = raw.split(DASH_SPLIT_RE).map { it.trim() }.filter { it.isNotEmpty() }
+        val code = parts.firstOrNull().orEmpty()
+        if (parts.size < 3) {
+            return Triple(code, parts.drop(1).joinToString(" - "), "")
+        }
+        val last = parts.last()
+        return if (TYPE_SUFFIX_RE.containsMatchIn(last)) {
+            Triple(code, parts.subList(1, parts.size - 1).joinToString(" - "), last)
+        } else {
+            Triple(code, parts.drop(1).joinToString(" - "), "")
+        }
+    }
+
+    private fun parseClassDetail(raw: String): Triple<String, String, String> {
+        val parts = raw.split(DASH_SPLIT_RE).map { it.trim() }.filter { it.isNotEmpty() }
+        return Triple(
+            parts.getOrNull(0).orEmpty(),
+            parts.getOrNull(1).orEmpty(),
+            parts.drop(2).joinToString(" - ")
+        )
+    }
 
     private suspend fun fetchRawAttendance(semesterId: String): List<RawAttendance> {
         val body = semesterBody(semesterId) ?: return emptyList()
         val result = rows(
             PATH_ATTENDANCE,
             body,
-            "#getStudentDetails table tbody tr",
+            "#AttendanceDetailDataTable tbody tr, #getStudentDetails table tbody tr",
             captures = listOf(VtopScripts.Capture(selector = "a", name = "onclick"))
         )
         if (!result.ok) return emptyList()
 
         return result.rows.mapIndexedNotNull { i, row ->
-            // The server skips rows with fewer than 10 cells.
+            // DataTables' "No data available" placeholder has a single cell.
             if (row.size < 10) return@mapIndexedNotNull null
-            val slotName = result.cell(i, 4)
-            val title = result.cell(i, 2)
-            val rawCode = result.cell(i, 1).trim()
-            val isLab = slotName.trim().startsWith("L")
-            val honoCode = if (isLab) "$rawCode(L)" else "$rawCode(T)"
+            if (row.size < 12) {
+                // Modern 10-column #AttendanceDetailDataTable layout:
+                // 0 Sl.No | 1 Class Group | 2 Course Detail (CODE - Title - Type) |
+                // 3 Class Detail (classId - slot - venue) | 4 Faculty | 5 Attended |
+                // 6 Total | 7 Percentage | 8 Debar Status | 9 Eye Link
+                val courseDetail = result.cell(i, 2)
+                val (code, parsedTitle, typeLabel) = parseCourseDetail(courseDetail)
+                val (classId, slotName, venue) = parseClassDetail(result.cell(i, 3))
+                val isLab = slotName.startsWith("L", ignoreCase = true) ||
+                    typeLabel.contains("lab", ignoreCase = true)
+                val honoCode = if (code.isNotEmpty()) {
+                    "$code${if (isLab) "(L)" else "(T)"}"
+                } else {
+                    courseDetail
+                }
 
-            RawAttendance(
-                courseCode = honoCode,
-                courseTitle = title,
-                courseType = VtopCourseCode.typeLabelOf(
-                    rawCode = rawCode,
-                    typeHint = result.cell(i, 3),
-                    slot = slotName,
-                    title = title
-                ).orEmpty(),
-                slotName = slotName,
-                faculty = result.cell(i, 5),
-                attended = result.cell(i, 9).toIntOrNull() ?: 0,
-                total = result.cell(i, 10).toIntOrNull() ?: 0,
-                percentage = result.cell(i, 11),
-                viewLink = result.capture(i, 0)
-            )
+                RawAttendance(
+                    courseCode = honoCode,
+                    courseTitle = parsedTitle.ifBlank { courseDetail },
+                    courseType = typeLabel.ifBlank {
+                        VtopCourseCode.typeLabelOf(
+                            rawCode = code,
+                            typeHint = typeLabel,
+                            slot = slotName,
+                            title = parsedTitle
+                        ).orEmpty()
+                    },
+                    slotName = slotName,
+                    faculty = result.cell(i, 4),
+                    attended = result.cell(i, 5).toIntOrNull() ?: 0,
+                    total = result.cell(i, 6).toIntOrNull() ?: 0,
+                    percentage = result.cell(i, 7),
+                    viewLink = result.capture(i, 0),
+                    classId = classId.ifBlank { null },
+                    slotVenue = venue.ifBlank { null }
+                )
+            } else {
+                // Legacy 14-column #getStudentDetails table layout
+                val slotName = result.cell(i, 4)
+                val title = result.cell(i, 2)
+                val rawCode = result.cell(i, 1).trim()
+                val isLab = slotName.trim().startsWith("L", ignoreCase = true)
+                val honoCode = if (isLab) "$rawCode(L)" else "$rawCode(T)"
+
+                RawAttendance(
+                    courseCode = honoCode,
+                    courseTitle = title,
+                    courseType = VtopCourseCode.typeLabelOf(
+                        rawCode = rawCode,
+                        typeHint = result.cell(i, 3),
+                        slot = slotName,
+                        title = title
+                    ).orEmpty(),
+                    slotName = slotName,
+                    faculty = result.cell(i, 5),
+                    attended = result.cell(i, 9).toIntOrNull() ?: 0,
+                    total = result.cell(i, 10).toIntOrNull() ?: 0,
+                    percentage = result.cell(i, 11),
+                    viewLink = result.capture(i, 0)
+                )
+            }
         }
     }
 
-    /** Daily history for one course from `processViewAttendanceDetail` (columns 1 and 4). */
-    private suspend fun fetchAttendanceDetail(classId: String, slotName: String): List<AttendanceLog> {
-        val authorizedID = VtopSession.authorizedID.value ?: return emptyList()
-        val csrf = VtopSession.csrf.value ?: return emptyList()
-        val body = "_csrf=$csrf&authorizedID=$authorizedID&x=${now()}&classId=$classId&slotName=$slotName"
+    /** Daily history + registration/attendance dates from `processViewAttendanceDetail`. */
+    private suspend fun fetchAttendanceDetail(viewLink: String): AttendanceDetailResult? {
+        val authorizedID = VtopSession.authorizedID.value ?: return null
+        val csrf = VtopSession.csrf.value ?: return null
 
-        val result = rows(PATH_ATTENDANCE_DETAIL, body, "table.table tr")
-        if (!result.ok) return emptyList()
-
-        // Row 0 is the header; the server skips it.
-        return result.rows.drop(1).mapIndexedNotNull { j, row ->
-            if (row.size < 5) return@mapIndexedNotNull null
-            val i = j + 1
-            AttendanceLog(date = result.cell(i, 1), status = result.cell(i, 4))
+        val modernMatch = DETAIL_CALL.find(viewLink)
+        val body = if (modernMatch != null) {
+            val (semesterSubId, registerNumber, courseId, courseType) = modernMatch.destructured
+            val regNo = registerNumber.ifBlank { authorizedID }
+            "_csrf=$csrf&authorizedID=$authorizedID&x=${now()}" +
+                "&semesterSubId=$semesterSubId&registerNumber=$regNo" +
+                "&courseId=$courseId&courseType=$courseType"
+        } else {
+            val legacyMatch = LEGACY_DETAIL_CALL.find(viewLink) ?: return null
+            val (classId, slotName) = legacyMatch.destructured
+            "_csrf=$csrf&authorizedID=$authorizedID&x=${now()}&classId=$classId&slotName=$slotName"
         }
+
+        val result = rows(
+            PATH_ATTENDANCE_DETAIL,
+            body,
+            "#StudentAttendanceDetailDataTable tbody tr, #StudentCourseDetailDataTable tbody tr, table.table tr"
+        )
+        if (!result.ok) return null
+
+        val logs = mutableListOf<AttendanceLog>()
+        var registrationDate: String? = null
+        var attendanceDate: String? = null
+
+        result.rows.forEachIndexed { i, row ->
+            if (row.size < 5) return@forEachIndexed
+            val col1 = result.cell(i, 1)
+            if (DETAIL_DATE_RE.containsMatchIn(col1)) {
+                logs.add(AttendanceLog(date = col1, status = result.cell(i, 4)))
+            } else if (registrationDate == null &&
+                !col1.equals("Date", ignoreCase = true) &&
+                !result.cell(i, 0).contains("Sl", ignoreCase = true)
+            ) {
+                val reg = result.cell(i, 4).ifBlank { null }
+                val att = if (row.size >= 6) result.cell(i, 5).ifBlank { null } else null
+                if (reg != null && DETAIL_DATE_RE.containsMatchIn(reg)) {
+                    registrationDate = reg
+                    attendanceDate = att
+                }
+            }
+        }
+
+        return AttendanceDetailResult(
+            logs = logs,
+            registrationDate = registrationDate,
+            attendanceDate = attendanceDate
+        )
     }
 
-    private val DETAIL_CALL = Regex("processViewAttendanceDetail\\('([^']*)','([^']*)'\\)")
+    private val DETAIL_CALL = Regex(
+        """callStudentAttendanceDetailDisplay\(\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'\s*,\s*'([^']*)'\s*\)"""
+    )
+    private val LEGACY_DETAIL_CALL = Regex(
+        """processViewAttendanceDetail\(\s*'([^']*)'\s*,\s*'([^']*)'\s*\)"""
+    )
 
     /**
      * Attendance merged with the timetable, plus per-course daily history.
@@ -598,12 +730,12 @@ object VtopDataSource {
                     courseType = match.courseType,
                     slotName = match.slotName,
                     faculty = match.faculty,
-                    classId = course.classId.ifBlank { null },
+                    classId = course.classId.ifBlank { match.classId },
                     attendedClasses = match.attended,
                     totalClasses = match.total,
                     attendancePercentage = match.percentage,
                     credits = course.credits,
-                    slotVenue = cleanedVenue,
+                    slotVenue = cleanedVenue ?: match.slotVenue,
                     category = course.category.ifBlank { null }
                 )
             } else {
@@ -636,10 +768,12 @@ object VtopDataSource {
         // synchronous, so overlapping requests would interleave on the same JS thread.
         val detailed = merged.map { (item, viewLink) ->
             val link = viewLink?.takeIf { it.isNotBlank() } ?: return@map item
-            val parsed = DETAIL_CALL.find(link) ?: return@map item
-            val (classId, slotName) = parsed.destructured
-            val logs = runCatching { fetchAttendanceDetail(classId, slotName) }.getOrDefault(emptyList())
-            item.copy(logs = logs)
+            val detail = runCatching { fetchAttendanceDetail(link) }.getOrNull() ?: return@map item
+            item.copy(
+                logs = detail.logs,
+                registrationDate = detail.registrationDate ?: item.registrationDate,
+                attendanceDate = detail.attendanceDate ?: item.attendanceDate
+            )
         }
 
         val res = AttendanceRes(
@@ -733,7 +867,7 @@ object VtopDataSource {
         }
 
         val summary = VtopCgpaSummary.parse(
-            evaluate(VtopScripts.fetchCgpaSummary(PATH_CGPA, sessionBody() ?: return null))
+            evaluate(VtopScripts.fetchCgpaSummary(PATH_CGPA, cgpaBody() ?: return null))
         )
 
         val res = MarksRes(
@@ -864,7 +998,7 @@ object VtopDataSource {
         val history = rows(
             PATH_HOSTEL_LEAVE_HISTORY,
             historyBody,
-            "#LeaveHistoryTable tbody tr"
+            "#LeaveHistoryTable tbody tr, table.table tbody tr"
         )
         val applied = rows(
             PATH_HOSTEL_LEAVE_APPLIED,
@@ -1225,6 +1359,7 @@ object VtopDataSource {
         val body = sessionBody() ?: return null
         val res = evaluate(VtopScripts.fetchExamSchedule(PATH_EXAM_SCHEDULE, body, semesterId))
         val root = res.rawObject()
+        if ((root["ok"] as? JsonPrimitive)?.booleanOrNull == false) return null
         val schedule = root["Schedule"]?.jsonObject?.mapValues { (_, v) ->
             (v as? JsonArray)?.mapNotNull { row ->
                 try { json.decodeFromJsonElement(ExamItem.serializer(), row) } catch (_: Exception) { null }
@@ -1584,6 +1719,8 @@ object VtopDataSource {
 
     suspend fun fetchFeedbackStatus(semesterId: String): FeedbackStatusRes? {
         if (!VtopSession.hasSession) return null
+        val warmupBody = sessionBody() ?: return null
+        evaluate(VtopScripts.parsePage(PATH_FEEDBACK_WARMUP, warmupBody))
         val semBody = semesterBody(semesterId) ?: return null
         val page = VtopPage.parse(evaluate(VtopScripts.parsePage(PATH_FEEDBACK_STATUS, semBody)))
         if (!page.ok) return null
@@ -1610,6 +1747,180 @@ object VtopDataSource {
         return parsePage(PATH_COURSE_PAGE)
     }
 
+    suspend fun fetchContactDetails(): List<ContactEntry>? {
+        val body = sessionBody() ?: return null
+        val res = evaluate(buildContactScript(body))
+        val root = res.rawObject()
+        if ((root["ok"] as? JsonPrimitive)?.booleanOrNull != true) return null
+        val title = (root["title"] as? JsonPrimitive)?.content?.trim().orEmpty()
+        val contacts = (root["contacts"] as? JsonArray).orEmpty().mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val office = (o["office"] as? JsonPrimitive)?.content?.trim().orEmpty()
+            if (office.isEmpty()) return@mapNotNull null
+            val description = (o["description"] as? JsonPrimitive)?.content?.trim().orEmpty()
+            val email = (o["email"] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.trim()
+                ?.takeIf { it.isNotEmpty() }
+            ContactEntry(office = office, description = description, email = email)
+        }
+        if (contacts.isNotEmpty() || title.isNotEmpty()) {
+            UserStore.merge(
+                StudentIdentity(
+                    contacts = contacts,
+                    contactTitle = title.ifBlank { null }
+                ),
+                IdentitySource.RECORDS
+            )
+        }
+        return contacts
+    }
+
+    suspend fun fetchAcknowledgement(): AcknowledgementInfo? {
+        val body = sessionBody() ?: return null
+        val res = evaluate(buildAcknowledgementScript(body))
+        val root = res.rawObject()
+        if ((root["ok"] as? JsonPrimitive)?.booleanOrNull != true) return null
+        fun strField(key: String): String? =
+            (root[key] as? JsonPrimitive)?.takeUnless { it is JsonNull }?.content?.trim()
+                ?.takeIf { it.isNotEmpty() }
+
+        val documents = (root["documents"] as? JsonArray).orEmpty().mapNotNull { el ->
+            val o = el as? JsonObject ?: return@mapNotNull null
+            val serialNo = (o["serialNo"] as? JsonPrimitive)?.content?.trim().orEmpty()
+            val documentName = (o["documentName"] as? JsonPrimitive)?.content?.trim().orEmpty()
+            val status = (o["status"] as? JsonPrimitive)?.content?.trim().orEmpty()
+            if (serialNo.isEmpty() || documentName.isEmpty()) return@mapNotNull null
+            AcknowledgementDocument(serialNo = serialNo, documentName = documentName, status = status)
+        }
+
+        val info = AcknowledgementInfo(
+            title = strField("title"),
+            documents = documents,
+            applicationNo = strField("applicationNo"),
+            registerNo = strField("registerNo"),
+            programme = strField("programme"),
+            branch = strField("branch"),
+            campus = strField("campus")
+        )
+        UserStore.merge(
+            StudentIdentity(
+                acknowledgement = info,
+                applicationNumber = info.applicationNo
+            ),
+            IdentitySource.RECORDS
+        )
+        return info
+    }
+
+    private fun buildContactScript(body: String): String {
+        val p = VtopScripts.jsString(PATH_CONTACT)
+        val b = VtopScripts.jsString(body)
+        return """
+            (function() {
+              try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', $p, false);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                xhr.send($b);
+                if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+                var html = xhr.responseText || '';
+                if (html.toLowerCase().indexOf('not authorized') !== -1) {
+                  return JSON.stringify({ ok: false, error: 'not authorized' });
+                }
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var titleEl = doc.querySelector('strong.fw-bold.h2');
+                var title = titleEl ? (titleEl.textContent || '').trim() : '';
+                var cards = doc.querySelectorAll('.card.rounded-3.shadow');
+                var contacts = [];
+                for (var i = 0; i < cards.length; i++) {
+                  var officeEl = cards[i].querySelector('.card-header strong');
+                  var office = officeEl ? (officeEl.textContent || '').trim() : '';
+                  if (!office) continue;
+                  var descEl = cards[i].querySelector('.card-body p');
+                  var emailEl = cards[i].querySelector('.card-body p.text-success');
+                  contacts.push({
+                    office: office,
+                    description: descEl ? (descEl.textContent || '').trim() : '',
+                    email: emailEl ? (emailEl.textContent || '').trim() : null
+                  });
+                }
+                return JSON.stringify({ ok: true, title: title, contacts: contacts });
+              } catch (e) {
+                return JSON.stringify({ ok: false, error: String(e && e.message ? e.message : e) });
+              }
+            })();
+        """.trimIndent()
+    }
+
+    private fun buildAcknowledgementScript(body: String): String {
+        val p = VtopScripts.jsString(PATH_ACKNOWLEDGEMENT)
+        val b = VtopScripts.jsString(body)
+        return """
+            (function() {
+              try {
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', $p, false);
+                xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+                xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+                xhr.send($b);
+                if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
+                var html = xhr.responseText || '';
+                if (html.toLowerCase().indexOf('not authorized') !== -1) {
+                  return JSON.stringify({ ok: false, error: 'not authorized' });
+                }
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                function norm(s) { return (s || '').replace(/\s+/g, ' ').trim(); }
+                var titleEl = doc.querySelector('h3.box-title, .box-title, h2, h3');
+                var out = {
+                  ok: true,
+                  title: titleEl ? norm(titleEl.textContent) : '',
+                  applicationNo: '',
+                  registerNo: '',
+                  name: '',
+                  programme: '',
+                  campus: '',
+                  branch: '',
+                  documents: []
+                };
+                var tables = doc.querySelectorAll('table');
+                if (tables.length > 0) {
+                  var rows0 = tables[0].querySelectorAll('tr');
+                  for (var r = 0; r < rows0.length; r++) {
+                    var cells = rows0[r].querySelectorAll('td, th');
+                    for (var c = 0; c + 1 < cells.length; c += 2) {
+                      var k = norm(cells[c].textContent).toLowerCase();
+                      var v = norm(cells[c + 1].textContent);
+                      if (!k || !v) continue;
+                      if (k.indexOf('application no') !== -1) out.applicationNo = v;
+                      else if (k.indexOf('register no') !== -1) out.registerNo = v;
+                      else if (k.indexOf('name') !== -1) out.name = v;
+                      else if (k.indexOf('programme') !== -1) out.programme = v;
+                      else if (k.indexOf('campus') !== -1) out.campus = v;
+                      else if (k.indexOf('branch') !== -1) out.branch = v;
+                    }
+                  }
+                }
+                if (tables.length > 1) {
+                  var rows1 = tables[1].querySelectorAll('tr');
+                  for (var r1 = 0; r1 < rows1.length; r1++) {
+                    var c1 = rows1[r1].querySelectorAll('td, th');
+                    if (c1.length < 3) continue;
+                    var serialNo = norm(c1[0].textContent).replace(/\.$/, '').trim();
+                    var documentName = norm(c1[1].textContent);
+                    var status = norm(c1[c1.length - 1].textContent);
+                    if (!serialNo || !documentName) continue;
+                    if (/^s\.?\s*no$/i.test(serialNo) || /document name/i.test(documentName)) continue;
+                    out.documents.push({ serialNo: serialNo, documentName: documentName, status: status });
+                  }
+                }
+                return JSON.stringify(out);
+              } catch (e) {
+                return JSON.stringify({ ok: false, error: String(e && e.message ? e.message : e) });
+              }
+            })();
+        """.trimIndent()
+    }
+
     suspend fun fetchWhoami(): Boolean {
         if (!VtopSession.hasSession) return false
         val student = fetchStudentProfile()
@@ -1618,7 +1929,9 @@ object VtopDataSource {
         val dayboarder = fetchDayboarder()
         val apaar = fetchApaarId()
         val ept = fetchEptSchedule()
-        return student != null || profileImages != null
+        val contact = fetchContactDetails()
+        val acknowledgement = fetchAcknowledgement()
+        return student != null || profileImages != null || contact != null || acknowledgement != null
     }
 
     private val curriculumCategories = ListSerializer(CurriculumCategory.serializer())

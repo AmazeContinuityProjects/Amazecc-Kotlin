@@ -200,12 +200,53 @@ internal object M3EPredictorDerivation {
         )
     }
 
-    private fun isLabAssessment(item: M3EAssessmentItem): Boolean {
+    fun isLabAssessment(item: M3EAssessmentItem): Boolean {
         val comp = item.component.trim().uppercase()
         if (comp == "ELA" || comp == "LAB" || comp.contains("LAB") || comp.contains("PRACTICAL")) return true
         if (comp == "ETH" || comp == "THEORY" || comp.contains("THEORY")) return false
         val title = item.title.trim().uppercase()
         return title.contains("LAB") || title.contains("ELA") || title.contains("PRACTICAL")
+    }
+
+    fun isFinalExamTitle(title: String): Boolean =
+        title.contains("FAT", ignoreCase = true) ||
+            title.contains("Final Assessment", ignoreCase = true) ||
+            title.contains("Final Test", ignoreCase = true)
+
+    /**
+     * Distinguishes unposted/pending assessments from legitimate 0.0 scores.
+     * - "Pending" or "-" status is always pending.
+     * - "Simulated" is never pending (even at 0.0).
+     * - Blank status with 0.0 score is treated as pending; "Present"/"Absent" with 0.0 is scored.
+     */
+    fun isPendingAssessment(asm: M3EAssessmentItem): Boolean {
+        val status = asm.status.trim()
+        if (status.equals("Pending", ignoreCase = true)) return true
+        if (status == "-") return true
+        if (status.equals("Simulated", ignoreCase = true)) return false
+        if (status.isBlank() && asm.scoredMarks <= 0.0) return true
+        return false
+    }
+
+    /**
+     * Gate for the Target Grade Solver: returns true only when every non-FAT assessment
+     * (and for embedded courses, the Lab FAT) has a recorded or simulated mark.
+     */
+    fun onlyFatRemains(
+        assessments: List<M3EAssessmentItem>,
+        labFatScored: Double? = null
+    ): Boolean {
+        if (assessments.isEmpty()) return false
+        val hasTheory = assessments.any { !isLabAssessment(it) }
+        val nonFat = assessments.filter { !isFinalExamTitle(it.title) }
+        if (nonFat.any { isPendingAssessment(it) }) return false
+        if (hasTheory) {
+            val labFat = assessments.firstOrNull { isLabAssessment(it) && isFinalExamTitle(it.title) }
+            if (labFat != null && labFatScored == null && isPendingAssessment(labFat)) {
+                return false
+            }
+        }
+        return true
     }
 
     private fun calculateRawComponentTotal(items: List<M3EAssessmentItem>): Pair<Double, Double>? {
@@ -216,8 +257,10 @@ internal object M3EPredictorDerivation {
             val maxMark = assessment.maxMarks
             val weight = assessment.weightagePercent
             if (maxMark <= 0.0 || weight <= 0.0) continue
-            val ratio = min(max(assessment.scoredMarks, 0.0), maxMark) / maxMark
-            scored += ratio * weight
+            if (!isPendingAssessment(assessment)) {
+                val ratio = min(max(assessment.scoredMarks, 0.0), maxMark) / maxMark
+                scored += ratio * weight
+            }
             maximum += weight
             usable = true
         }
@@ -343,7 +386,8 @@ internal object M3EPredictorDerivation {
         val maxPossibleScaled: Double,
         val pacePercentage: Double?,
         val optimalGrade: String?,
-        val maximisableGrade: String
+        val maximisableGrade: String,
+        val passIssues: List<String> = emptyList()
     )
 
     fun calculateCoursePredictionMetrics(
@@ -371,13 +415,7 @@ internal object M3EPredictorDerivation {
                 val weight = asm.weightagePercent
                 val maxMark = asm.maxMarks
                 if (weight <= 0.0 || maxMark <= 0.0) continue
-                // Match web: only null/empty/"-"/blank status with score=0 is truly pending.
-                // "Simulated" is treated as recorded (user explicitly set it).
-                // A score > 0 always means recorded, even if status says "Present".
-                val rawScore = asm.scoredMarks
-                val isPending = asm.status.equals("Pending", ignoreCase = true) ||
-                    (rawScore == 0.0 && (asm.status == null || asm.status.isBlank() || asm.status == "-"))
-                val isRecorded = !isPending
+                val isRecorded = !isPendingAssessment(asm)
                 if (isRecorded) {
                     val ratio = min(max(asm.scoredMarks, 0.0), maxMark) / maxMark
                     val scWeight = ratio * weight
@@ -391,7 +429,7 @@ internal object M3EPredictorDerivation {
         }
 
         val (tScored, tLost, _) = if (theoryItems.isNotEmpty()) componentMetrics(theoryItems) else Triple(0.0, 0.0, 0.0)
-        val (lScored, lLost, _) = if (labItems.isNotEmpty()) componentMetrics(labItems) else Triple(0.0, 0.0, 0.0)
+        val (lScored, lLost, lPending) = if (labItems.isNotEmpty()) componentMetrics(labItems) else Triple(0.0, 0.0, 0.0)
 
         val totalCr = if (isEmbedded) max(0.1, tCr + lCr) else 1.0
         val currentScoredScaled = if (isEmbedded) (tScored * tCr + lScored * lCr) / totalCr else (tScored + lScored)
@@ -411,8 +449,59 @@ internal object M3EPredictorDerivation {
             else -> "F"
         }
 
-        val optimalGrade = pacePct?.let { estimateGrade(it) }
-        val maximisableGrade = estimateGrade(maxPossibleScaled)
+        // VIT FFCS Statutory Pass Floors (§9.4 Theory FAT < 40% -> F; §9.6/§9.7 Lab < 50% -> N; N wins over F)
+        var paceFloor: String? = null
+        var ceilingFloor: String? = null
+        val passIssues = mutableListOf<String>()
+        fun worse(cur: String?, next: String): String = if (cur == "N") "N" else next
+
+        val theoryFat = theoryItems.firstOrNull { isFinalExamTitle(it.title) }
+        if (theoryItems.isNotEmpty() && theoryFat != null) {
+            if (!isPendingAssessment(theoryFat) && theoryFat.maxMarks > 0.0) {
+                val fatPct = (max(0.0, theoryFat.scoredMarks) / theoryFat.maxMarks) * 100.0
+                if (fatPct < 40.0) {
+                    paceFloor = worse(paceFloor, "F")
+                    ceilingFloor = worse(ceilingFloor, "F")
+                    passIssues.add("${theoryFat.title} is ${round2(fatPct)}% — theory FAT needs 40% on its own to pass (§9.4).")
+                }
+            } else {
+                val tReleased = tScored + tLost
+                val thPace = if (tReleased > 0.0) (tScored / tReleased) * 100.0 else null
+                if (thPace != null && thPace < 40.0) {
+                    paceFloor = worse(paceFloor, "F")
+                    passIssues.add("At your current ${round2(thPace)}% pace the FAT would land below the 40% pass floor (§9.4).")
+                }
+            }
+        }
+
+        if (labItems.isNotEmpty()) {
+            val labTotalWeight = lScored + lLost + lPending
+            if (labTotalWeight > 0.0) {
+                val labCeilingPct = ((labTotalWeight - lLost) / labTotalWeight) * 100.0
+                val labReleased = lScored + lLost
+                val labPacePct = if (labReleased > 0.0) (lScored / labReleased) * 100.0 else null
+                if (labCeilingPct < 50.0) {
+                    paceFloor = "N"
+                    ceilingFloor = "N"
+                    passIssues.add("Lab can reach at most ${round2(labCeilingPct)}% — it needs 50% of its own marks, or the course is N (§9.6/§9.7).")
+                } else if (labPacePct != null && labPacePct < 50.0) {
+                    paceFloor = "N"
+                    passIssues.add("Lab is at ${round2(labPacePct)}% — below the 50% required to complete the course (§9.6/§9.7).")
+                }
+            }
+        }
+
+        val rawOptimalGrade = pacePct?.let { estimateGrade(it) }
+        val rawMaximisableGrade = estimateGrade(maxPossibleScaled)
+        val optimalGrade = when {
+            rawOptimalGrade == null -> null
+            paceFloor != null -> paceFloor
+            else -> rawOptimalGrade
+        }
+        val maximisableGrade = when {
+            ceilingFloor != null -> ceilingFloor
+            else -> rawMaximisableGrade
+        }
 
         return CoursePredictionMetrics(
             currentScoredScaled = round2(currentScoredScaled),
@@ -420,7 +509,8 @@ internal object M3EPredictorDerivation {
             maxPossibleScaled = round2(maxPossibleScaled),
             pacePercentage = pacePct,
             optimalGrade = optimalGrade,
-            maximisableGrade = maximisableGrade
+            maximisableGrade = maximisableGrade,
+            passIssues = passIssues
         )
     }
 
@@ -453,7 +543,7 @@ internal object M3EPredictorDerivation {
         "S", "A" -> M3ECardTone.GOOD
         "B", "C" -> M3ECardTone.NEUTRAL
         "D", "E" -> M3ECardTone.WARNING
-        "F" -> M3ECardTone.CRITICAL
+        "F", "N" -> M3ECardTone.CRITICAL
         else -> M3ECardTone.NEUTRAL
     }
 
@@ -473,12 +563,13 @@ internal object M3EPredictorDerivation {
         val feasibilityLabel: String,
         val feasibilityMessage: String,
         val targetCutoff: Double,
-        val meetsVitPassFloor: Boolean
+        val meetsVitPassFloor: Boolean,
+        val onlyFatRemains: Boolean = true
     )
 
     /**
      * Solves required final exam (FAT) score taking into account internal assessments,
-     * embedded course theory/lab credit weighting, simulated Lab FAT, and cohort curves (§9.4 & §9.5).
+     * embedded course theory/lab credit weighting, simulated Lab FAT, and cohort curves (§9.4, §9.6, §9.7).
      */
     fun solveCourseFat(
         targetGrade: String,
@@ -494,35 +585,71 @@ internal object M3EPredictorDerivation {
         courseSystem: String? = null,
         courseType: String? = null
     ): FatRequirement {
+        val targetCutoff = cutoffFor(targetGrade, classStats, courseSystem, courseType) ?: 80.0
+        val gateOpen = onlyFatRemains(assessments, labFatScored)
+        if (!gateOpen) {
+            return FatRequirement(
+                targetGrade = targetGrade,
+                requiredFatRaw = 0.0,
+                requiredFatPercent = 0.0,
+                feasibility = "pending",
+                feasibilityLabel = "Pending internals",
+                feasibilityMessage = "Assign a mark to every other assessment first. Once only FAT remains, this card answers what you need in it.",
+                targetCutoff = targetCutoff,
+                meetsVitPassFloor = false,
+                onlyFatRemains = false
+            )
+        }
+
         val tCredits = theoryCredits ?: 3.0
         val lCredits = labCredits ?: 1.0
         val hasLab = assessments.any { isLabAssessment(it) }
         val hasTheory = assessments.any { !isLabAssessment(it) }
         val isEmbedded = hasLab && hasTheory && tCredits > 0.0 && lCredits > 0.0
 
-        val theoryAssessments = assessments.filter { !isLabAssessment(it) && !it.title.contains("FAT", ignoreCase = true) && !it.title.contains("Final Assessment", ignoreCase = true) }
-        val labAssessments = assessments.filter { isLabAssessment(it) && !it.title.contains("FAT", ignoreCase = true) && !it.title.contains("Final Assessment", ignoreCase = true) }
+        val theoryAssessments = assessments.filter { !isLabAssessment(it) && !isFinalExamTitle(it.title) }
+        val labAssessments = assessments.filter { isLabAssessment(it) && !isFinalExamTitle(it.title) }
 
-        val theoryInternalWeight = theoryAssessments.sumOf { it.weightageMarks }
-        var labInternalWeight = labAssessments.sumOf { it.weightageMarks }
+        val theoryInternalWeight = theoryAssessments.sumOf { if (isPendingAssessment(it)) 0.0 else it.weightageMarks }
+        var labInternalWeight = labAssessments.sumOf { if (isPendingAssessment(it)) 0.0 else it.weightageMarks }
 
         // If Lab FAT is simulated or scored (either via explicit labFatScored or via Lab FAT assessment row)
         val labFatAsm = assessments.firstOrNull {
-            isLabAssessment(it) && (it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true))
+            isLabAssessment(it) && isFinalExamTitle(it.title)
         }
         val effectiveLabFat = labFatScored ?: labFatAsm?.takeIf {
-            it.scoredMarks > 0.0 || it.status.equals("Simulated", ignoreCase = true)
+            !isPendingAssessment(it)
         }?.scoredMarks
         val effectiveLabFatMax = if (labFatScored != null) labFatMax else (labFatAsm?.maxMarks?.takeIf { it > 0.0 } ?: labFatMax)
         val effectiveLabFatWeight = if (labFatScored != null) labFatWeight else (labFatAsm?.weightagePercent?.takeIf { it > 0.0 } ?: labFatWeight)
 
         if (effectiveLabFat != null && effectiveLabFatMax > 0.0) {
-            val labFatWeightScored = (effectiveLabFat / effectiveLabFatMax) * effectiveLabFatWeight
+            val labFatWeightScored = (max(0.0, effectiveLabFat) / effectiveLabFatMax) * effectiveLabFatWeight
             labInternalWeight += labFatWeightScored
         }
 
-        val targetCutoff = cutoffFor(targetGrade, classStats, courseSystem, courseType) ?: 80.0
         val solvesLab = !hasTheory
+
+        // §9.6 / §9.7: In an embedded course, if Lab component total < 50%, course is N regardless of Theory FAT.
+        if (isEmbedded && effectiveLabFat != null) {
+            val labTotalWeight = labAssessments.sumOf { it.weightagePercent } + effectiveLabFatWeight
+            if (labTotalWeight > 0.0) {
+                val labPct = (labInternalWeight / labTotalWeight) * 100.0
+                if (labPct < 50.0) {
+                    return FatRequirement(
+                        targetGrade = targetGrade,
+                        requiredFatRaw = 0.0,
+                        requiredFatPercent = 0.0,
+                        feasibility = "impossible",
+                        feasibilityLabel = "Lab below 50% (N)",
+                        feasibilityMessage = "Lab component is ${round2(labPct)}% (below 50% required by §9.6/§9.7), resulting in N regardless of Theory FAT.",
+                        targetCutoff = targetCutoff,
+                        meetsVitPassFloor = false,
+                        onlyFatRemains = true
+                    )
+                }
+            }
+        }
 
         val (rawScore, activeFatMax, activeFatWeight) = if (solvesLab) {
             val deficit = targetCutoff - labInternalWeight
@@ -557,7 +684,7 @@ internal object M3EPredictorDerivation {
                 feasibilityMessage = if (solvesLab) {
                     "Target already secured! Even with 0 in Lab FAT, you have achieved the target."
                 } else {
-                    "Target already secured on internal marks! 40% in Theory FAT is required to satisfy the VIT pass floor."
+                    "Target already secured on internal marks! 40% in Theory FAT is required to satisfy the VIT pass floor (§9.4)."
                 }
             }
             isImpossible -> {
@@ -588,7 +715,11 @@ internal object M3EPredictorDerivation {
         }
 
         val effectiveRaw = if (isAlreadyAchieved) 0.0 else max(0.0, rawScore)
-        val meetsFloor = solvesLab || (effectiveRaw >= 0.4 * activeFatMax)
+        val meetsFloor = if (solvesLab) {
+            (labInternalWeight + (effectiveRaw / max(0.1, activeFatMax)) * activeFatWeight) >= 50.0
+        } else {
+            effectiveRaw >= 0.4 * activeFatMax
+        }
 
         return FatRequirement(
             targetGrade = targetGrade,
@@ -598,7 +729,8 @@ internal object M3EPredictorDerivation {
             feasibilityLabel = feasibilityLabel,
             feasibilityMessage = feasibilityMessage,
             targetCutoff = targetCutoff,
-            meetsVitPassFloor = meetsFloor
+            meetsVitPassFloor = meetsFloor,
+            onlyFatRemains = true
         )
     }
 }

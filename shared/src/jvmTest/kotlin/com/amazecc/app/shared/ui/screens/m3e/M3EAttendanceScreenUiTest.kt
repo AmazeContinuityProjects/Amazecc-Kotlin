@@ -216,7 +216,7 @@ class M3EAttendanceScreenUiTest {
 
         onNodeWithText("Operating Systems Theory").assertExists()
         onNodeWithText("62.50%").assertExists()
-        onNodeWithText("Attendance not published").assertDoesNotExist()
+        onNodeWithText("Unpublished").assertDoesNotExist()
         onNodeWithText("0.00%").assertDoesNotExist()
     }
 
@@ -260,7 +260,7 @@ class M3EAttendanceScreenUiTest {
         }
 
         onNodeWithText("Indian Constitution").assertExists()
-        onNodeWithText("Attendance not published").assertExists()
+        onNodeWithText("Unpublished").assertExists()
         onNodeWithText("0.00%").assertDoesNotExist()
     }
 

@@ -47,6 +47,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -71,6 +74,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.amazecc.app.shared.api.AmazeClient
@@ -406,55 +410,75 @@ fun M3ELoginScreen(
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         // VTOP Engine Selector (On-Device Local Scraper vs Remote API Cloud)
-                        Box(
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(colors.surfaceContainerHigh)
-                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                .padding(horizontal = 14.dp, vertical = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (isLocalVtop) Icons.Rounded.Devices else Icons.Rounded.Cloud,
-                                        contentDescription = null,
-                                        tint = colors.primary,
-                                        modifier = Modifier.size(18.dp)
+                                Icon(
+                                    imageVector = if (isLocalVtop) Icons.Rounded.Devices else Icons.Rounded.Cloud,
+                                    contentDescription = null,
+                                    tint = colors.primary,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = if (isLocalVtop) "On-Device Engine (Local)" else "Remote API Gateway",
+                                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                        color = colors.onSurface
                                     )
-                                    Column {
-                                        Text(
-                                            text = if (isLocalVtop) "On-Device Engine (Local)" else "Remote API Gateway",
-                                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                            color = colors.onSurface
+                                    Text(
+                                        text = if (isLocalVtop) "Zero credentials leave this phone" else "Cloud-accelerated proxy",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = colors.onSurfaceVariant
+                                    )
+                                }
+                            }
+
+                            SingleChoiceSegmentedButtonRow(
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val options = listOf(
+                                    VtopSource.LOCAL to "Local (On-Device)",
+                                    VtopSource.REMOTE to "Remote (Cloud)"
+                                )
+                                options.forEachIndexed { index, (source, label) ->
+                                    val selected = vtopSource == source
+                                    SegmentedButton(
+                                        selected = selected,
+                                        onClick = {
+                                            if (vtopSource != source) {
+                                                AmazeClient.setVtopSource(source)
+                                                vtopSource = source
+                                                errorMessage = null
+                                            }
+                                        },
+                                        shape = SegmentedButtonDefaults.itemShape(
+                                            index = index,
+                                            count = options.size
+                                        ),
+                                        enabled = !isSubmitting,
+                                        colors = SegmentedButtonDefaults.colors(
+                                            activeContainerColor = colors.primaryContainer,
+                                            activeContentColor = colors.onPrimaryContainer,
+                                            inactiveContainerColor = colors.surfaceContainerLow,
+                                            inactiveContentColor = colors.onSurfaceVariant
                                         )
+                                    ) {
                                         Text(
-                                            text = if (isLocalVtop) "Zero credentials leave this phone" else "Cloud-accelerated proxy",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = colors.onSurfaceVariant
+                                            text = label,
+                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                }
-
-                                TextButton(
-                                    onClick = {
-                                        val newSource = if (isLocalVtop) VtopSource.REMOTE else VtopSource.LOCAL
-                                        AmazeClient.setVtopSource(newSource)
-                                        vtopSource = newSource
-                                    },
-                                    enabled = !isSubmitting
-                                ) {
-                                    Text(
-                                        text = if (isLocalVtop) "Switch to Remote" else "Switch to Local",
-                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                        color = colors.primary
-                                    )
                                 }
                             }
                         }

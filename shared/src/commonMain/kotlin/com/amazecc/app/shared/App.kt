@@ -556,6 +556,13 @@ fun App() {
                             }
                         }
                     }
+
+                    val captchaRequest by com.amazecc.app.shared.vtop.Vtop.captchaRequest.collectAsState()
+                    if (captchaRequest != null && currentScreen != Screen.LOGIN) {
+                        com.amazecc.app.shared.ui.components.VtopCaptchaPrompt(
+                            challenge = captchaRequest!!
+                        )
+                    }
                 }
             }
         }

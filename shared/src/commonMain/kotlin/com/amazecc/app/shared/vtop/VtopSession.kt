@@ -73,11 +73,11 @@ object VtopSession {
         _sessionTimestamp.value = nowMs
     }
 
-    fun save(csrf: String, authorizedID: String, authorizedIDX: String) {
+    fun save(csrf: String, authorizedID: String, authorizedIDX: String, winImage: String? = null) {
         _csrf.value = csrf
         _authorizedID.value = authorizedID
         _authorizedIDX.value = authorizedIDX
-        _winImage.value = null
+        _winImage.value = winImage
         _sessionTimestamp.value = Clock.System.now().toEpochMilliseconds()
     }
 

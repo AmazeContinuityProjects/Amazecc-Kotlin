@@ -180,12 +180,18 @@ internal object VtopScripts {
         """
         var csrfInput = document.querySelector('input[name="_csrf"]');
         var idInput = document.querySelector('#authorizedIDX') || document.querySelector('input[name="authorizedid"]');
+        var authIdInput = document.querySelector('input#authorizedID')
+          || document.querySelector('#authorizedID')
+          || document.querySelector('input[name="authorizedid"]')
+          || document.querySelector('input[name="authorizedID"]');
         var winInput = document.querySelector('#winImage');
         if (!idInput) return JSON.stringify({ ok: false, error: 'authorizedIDX not found' });
+        var authIdVal = authIdInput && authIdInput.value ? authIdInput.value.trim() : '';
         return JSON.stringify({
           ok: true,
           csrf: csrfInput ? csrfInput.value : null,
           authorizedIDX: idInput.value,
+          authorizedID: authIdVal || undefined,
           winImage: winInput ? winInput.value : null,
           href: window.location.href
         });
@@ -1062,6 +1068,43 @@ internal object VtopScripts {
         var father = {}, mother = {}, proctor = {};
         var hasFather = false, hasMother = false, hasProctor = false;
 
+        function isRegistrationNumber(v) {
+          if (typeof v !== 'string') return false;
+          return /^[0-9]{2}[A-Z]{2,5}[0-9]{3,5}$/.test(v.trim().toUpperCase());
+        }
+
+        // Primary VIT Registration Number, Email & Branch from top header card
+        var regNoLabel = doc.querySelector('label[for="no"]');
+        var regNoHeader = regNoLabel ? (regNoLabel.textContent || '').trim() : '';
+        if (regNoHeader && isRegistrationNumber(regNoHeader)) {
+          out.registerNo = regNoHeader.toUpperCase();
+        } else {
+          var labels = doc.querySelectorAll('label');
+          for (var li = 0; li < labels.length; li++) {
+            var lText = (labels[li].textContent || '').trim().toUpperCase();
+            if (lText.indexOf('REGISTER NUMBER') !== -1 || lText.indexOf('REGISTRATION NUMBER') !== -1 || lText.indexOf('REG NO') !== -1) {
+              var nextEl = labels[li].nextElementSibling;
+              var candidate = (nextEl && nextEl.tagName === 'LABEL') ? (nextEl.textContent || '').trim() : '';
+              if (!candidate && labels[li].parentElement) {
+                var inParent = labels[li].parentElement.querySelector('label[for="no"]');
+                if (inParent) candidate = (inParent.textContent || '').trim();
+                else candidate = (labels[li].parentElement.textContent || '').replace(lText, '').trim();
+              }
+              if (candidate && isRegistrationNumber(candidate)) {
+                out.registerNo = candidate.toUpperCase();
+                break;
+              }
+            }
+          }
+        }
+
+        var vmailLabel = doc.querySelector('label[for="vmail"]');
+        var vmail = vmailLabel ? (vmailLabel.textContent || '').trim() : '';
+        if (vmail) out.email = vmail;
+        var branchLabel = doc.querySelector('label[for="branchno"]');
+        var branchHeader = branchLabel ? (branchLabel.textContent || '').trim() : '';
+        if (branchHeader) out.branch = branchHeader;
+
         var rows = doc.querySelectorAll('table tr');
         for (var r = 0; r < rows.length; r++) {
           var tds = rows[r].querySelectorAll('td');
@@ -1099,7 +1142,16 @@ internal object VtopScripts {
           else if (L.indexOf('SCHOOL NAME') !== -1 || L.indexOf('SCHOOL/COLLEGE NAME') !== -1) out.schoolName = value;
           else if (L.indexOf('MEDIUM OF STUDY') !== -1) out.mediumOfStudy = value;
           else if (L.indexOf('BOARD') !== -1 || L.indexOf('UNIVERSITY') !== -1) out.boardUniversity = value;
-          else if (L.indexOf('REGISTER NO') !== -1) out.registerNo = value;
+          else if (L.indexOf('REGISTER NO') !== -1 || L.indexOf('REGISTRATION NO') !== -1 || L.indexOf('ROLL NO') !== -1) {
+            if (isRegistrationNumber(value)) {
+              out.registerNo = value.toUpperCase();
+            } else {
+              out.schoolRollNo = value;
+              if (!out.registerNo) {
+                out.registerNo = value;
+              }
+            }
+          }
           else if (L.indexOf('CLASS OBTAINED') !== -1) out.classObtained = value;
           else if (L.indexOf('YEAR OF PASSING') !== -1 || L.indexOf('PASSED') !== -1) out.yearOfPassing = value;
           else if (L.indexOf('MONTH OF PASSING') !== -1 || L.indexOf('PASSED') !== -1) out.monthOfPassing = value;
@@ -1166,6 +1218,19 @@ internal object VtopScripts {
           if (m2) photo = m2[1];
         }
         if (photo) out.photo = photo;
+
+        // Fallback: if registerNo is still not a valid VIT registration number, look across page text
+        if (!out.registerNo || !isRegistrationNumber(out.registerNo)) {
+          var regMatches = res.match(/\b([0-9]{2}[A-Z]{2,5}[0-9]{3,5})\b/g);
+          if (regMatches && regMatches.length > 0) {
+            for (var rm = 0; rm < regMatches.length; rm++) {
+              if (isRegistrationNumber(regMatches[rm])) {
+                out.registerNo = regMatches[rm].toUpperCase();
+                break;
+              }
+            }
+          }
+        }
 
         return JSON.stringify({ ok: true, status: xhr.status, profile: out });
         """
@@ -1404,7 +1469,10 @@ internal object VtopScripts {
         xhr.open('POST', $p, false);
         xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
         xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
-        xhr.send($b);
+        var postBody = $b
+          ? ($b + '&semesterSubId=' + encodeURIComponent($sem))
+          : ('semesterSubId=' + encodeURIComponent($sem));
+        xhr.send(postBody);
         if (xhr.status === 0) return JSON.stringify({ ok: false, error: 'network error' });
 
         var res = xhr.responseText || '';

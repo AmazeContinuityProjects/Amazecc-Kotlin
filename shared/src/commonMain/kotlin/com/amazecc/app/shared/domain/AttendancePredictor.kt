@@ -2,6 +2,7 @@ package com.amazecc.app.shared.domain
 
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.round
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -409,10 +410,15 @@ object AttendancePredictor {
         val predictedPct = if (predictedTotal > 0) (predictedAttended.toDouble() / predictedTotal.toDouble()) * 100.0 else 0.0
 
         val ratio = input.threshold / 100.0
+        val roundedPredictedPct = if (predictedTotal > 0) {
+            round((predictedAttended.toDouble() / predictedTotal.toDouble()) * 1000.0) / 10.0
+        } else {
+            0.0
+        }
         var safeBunks = 0
         var classesNeeded = 0
         if (ratio > 0.0 && ratio < 1.0) {
-            if (predictedPct >= input.threshold) {
+            if (roundedPredictedPct >= input.threshold) {
                 val raw = floor((predictedAttended - ratio * predictedTotal) / ratio).toInt()
                 safeBunks = maxOf(0, if (isLab) floor(raw / 2.0).toInt() else raw)
             } else {
@@ -454,7 +460,7 @@ object AttendancePredictor {
             total += c.total
             predictedAttended += c.predictedAttended
             predictedTotal += c.predictedTotal
-            if (c.predictedPct >= threshold) {
+            if (round(c.predictedPct * 10.0) / 10.0 >= threshold) {
                 safeCount++
                 totalSafeBunks += c.safeBunks
             }

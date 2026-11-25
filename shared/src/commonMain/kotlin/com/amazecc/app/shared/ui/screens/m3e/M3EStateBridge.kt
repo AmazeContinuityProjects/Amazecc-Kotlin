@@ -42,7 +42,9 @@ import com.amazecc.app.shared.utils.setAppIconTheme
 import com.amazecc.app.shared.utils.rememberFileSaver
 import com.amazecc.app.shared.vtop.VtopSource
 import com.amazecc.app.shared.config.SlotMap
+import com.amazecc.app.shared.domain.Assessment
 import com.amazecc.app.shared.domain.Course
+import com.amazecc.app.shared.domain.CourseAttendance
 import com.amazecc.app.shared.domain.EmbeddedLinkCode
 import com.amazecc.app.shared.domain.Projections
 import com.amazecc.app.shared.domain.splitSlots
@@ -659,6 +661,40 @@ private fun isPredictorWorkingDay(day: CalendarDay): Boolean {
     return isWorking && !isHoliday
 }
 
+private fun isLabAssessment(item: M3EAssessmentItem): Boolean {
+    val comp = item.component.trim().uppercase()
+    if (comp == "ELA" || comp == "LAB" || comp.contains("LAB") || comp.contains("PRACTICAL")) return true
+    if (comp == "ETH" || comp == "THEORY" || comp.contains("THEORY")) return false
+    val title = item.title.trim().uppercase()
+    return title.contains("LAB") || title.contains("ELA") || title.contains("PRACTICAL")
+}
+
+private fun toAssessmentItem(m: Assessment, simulated: Double?): M3EAssessmentItem {
+    val actualScored = m.score.toDoubleOrNull() ?: 0.0
+    val effectiveScored = simulated ?: actualScored
+    val maxMark = m.maxMark.toDoubleOrNull() ?: 0.0
+    val weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0
+    val effectiveWeightageMark = if (maxMark > 0.0) {
+        (effectiveScored / maxMark) * weightagePercent
+    } else {
+        m.weightage.toDoubleOrNull() ?: 0.0
+    }
+    val resolvedStatus = when {
+        simulated != null -> "Simulated"
+        m.score.isBlank() || m.score.trim() == "-" -> "Pending"
+        else -> m.status
+    }
+    return M3EAssessmentItem(
+        title = m.name,
+        maxMarks = maxMark,
+        scoredMarks = effectiveScored,
+        weightagePercent = weightagePercent,
+        weightageMarks = effectiveWeightageMark,
+        status = resolvedStatus,
+        component = m.component.orEmpty()
+    )
+}
+
 @Composable
 fun M3EAttendancePredictorHost(modifier: Modifier = Modifier) {
     val isDark = M3EStateBridge.isDarkThemeActive()
@@ -713,10 +749,52 @@ fun M3EAttendancePredictorHost(modifier: Modifier = Modifier) {
     val slotMapTyped = remember {
         SlotMap.map.mapValues { (_, inner) -> inner.mapValues { (_, time) -> SlotInfo(time) } }
     }
-    val dayCardsMap = remember(domain) {
-        val attendance = com.amazecc.app.shared.domain.Projections.currentSemesterAttendance(domain)
+    val unrolledAttendance = remember(domain) {
+        val semId = Projections.reportingSemester(domain)?.id
+        val merged = if (semId != null) Projections.mergedCourses(domain, semId) else emptyList()
+        merged.flatMap { c ->
+            if (c.isEmbeddedMerged && c.halves.isNotEmpty()) {
+                c.halves.map { half ->
+                    val att = half.attendance
+                    CourseAttendance(
+                        courseCode = half.code.ifBlank { c.code },
+                        courseTitle = half.title.ifBlank { c.title },
+                        courseType = half.type.ifBlank { c.type },
+                        slotName = half.slots.joinToString("+"),
+                        slotVenue = c.venue,
+                        faculty = c.faculty.orEmpty(),
+                        credits = half.credits ?: c.credits,
+                        category = c.category,
+                        attendedClasses = att?.attended ?: 0,
+                        totalClasses = att?.total ?: 0,
+                        attendancePercentage = att?.percentage.orEmpty(),
+                        logs = att?.logs.orEmpty()
+                    )
+                }
+            } else {
+                val att = c.attendance
+                listOf(
+                    CourseAttendance(
+                        courseCode = c.code,
+                        courseTitle = c.title,
+                        courseType = c.type,
+                        slotName = c.slots.joinToString("+"),
+                        slotVenue = c.venue,
+                        faculty = c.faculty.orEmpty(),
+                        credits = c.credits,
+                        category = c.category,
+                        attendedClasses = att?.attended ?: 0,
+                        totalClasses = att?.total ?: 0,
+                        attendancePercentage = att?.percentage.orEmpty(),
+                        logs = att?.logs.orEmpty()
+                    )
+                )
+            }
+        }
+    }
+    val dayCardsMap = remember(unrolledAttendance, slotMapTyped) {
         AttendanceTimetable.buildAttendanceDayCardsMap(
-            attendance = attendance.map { item ->
+            attendance = unrolledAttendance.map { item ->
                 val shortType = when (item.courseType.lowercase()) {
                     "embedded theory" -> "ETH"
                     "embedded lab" -> "ELA"
@@ -748,8 +826,8 @@ fun M3EAttendancePredictorHost(modifier: Modifier = Modifier) {
         }
     }
 
-    val courseInputs = remember(domain) {
-        com.amazecc.app.shared.domain.Projections.currentSemesterAttendance(domain)
+    val courseInputs = remember(unrolledAttendance) {
+        unrolledAttendance
             .filter { AttendancePredictor.isProjectableCourse(it.courseCode, it.slotName, it.totalClasses) }
             .map { course ->
                 PredictorCourse(
@@ -987,15 +1065,7 @@ fun M3EAcademicsScreen(modifier: Modifier = Modifier) {
             // honest course-level value is absence, never a number derived from summed counts.
             val pct = hubAttendancePct(c)
             val internalMarks = c.marks?.assessments?.map { m ->
-                M3EAssessmentItem(
-                    title = m.name,
-                    maxMarks = m.maxMark.toDoubleOrNull() ?: 0.0,
-                    scoredMarks = m.score.toDoubleOrNull() ?: 0.0,
-                    weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0,
-                    weightageMarks = m.weightage.toDoubleOrNull() ?: 0.0,
-                    status = m.status,
-                    component = m.component.orEmpty()
-                )
+                toAssessmentItem(m, simulated = null)
             } ?: emptyList()
             val theoryHalf = c.halves.firstOrNull { it.half == "T" || !EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
             val labHalf = c.halves.firstOrNull { it.half == "L" || EmbeddedLinkCode.isLabRow(it.type, it.slots.joinToString("+")) }
@@ -1186,28 +1256,13 @@ fun M3ECourseDetailScreen(
 
     val internalAssessments = remember(course, simulatedMarks.toMap()) {
         val mapped = course?.marks?.assessments?.map { m ->
-            val simulated = simulatedMarks[m.name]
-            val actualScored = m.score.toDoubleOrNull() ?: 0.0
-            val effectiveScored = simulated ?: actualScored
-            val maxMark = m.maxMark.toDoubleOrNull() ?: 0.0
-            val weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0
-            val effectiveWeightageMark = if (maxMark > 0.0) (effectiveScored / maxMark) * weightagePercent else (m.weightage.toDoubleOrNull() ?: 0.0)
-
-            M3EAssessmentItem(
-                title = m.name,
-                maxMarks = maxMark,
-                scoredMarks = effectiveScored,
-                weightagePercent = weightagePercent,
-                weightageMarks = effectiveWeightageMark,
-                status = if (simulated != null) "Simulated" else m.status,
-                component = m.component.orEmpty()
-            )
+            toAssessmentItem(m, simulatedMarks[m.name])
         }.orEmpty()
 
         // Inject FAT row(s) for pending components — matches web's createPredictorAssessmentsFromVTOP.
         // This makes the FAT row appear in the assessment list so users can simulate it via the edit dialog.
-        val theoryAsms = mapped.filter { !it.component.equals("Lab", ignoreCase = true) }
-        val labAsms = mapped.filter { it.component.equals("Lab", ignoreCase = true) }
+        val theoryAsms = mapped.filter { !isLabAssessment(it) }
+        val labAsms = mapped.filter { isLabAssessment(it) }
         val hasTheoryFat = theoryAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
         val theoryWeight = theoryAsms.sumOf { it.weightagePercent }
         val hasLabFat = labAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
@@ -1680,28 +1735,13 @@ fun M3EMarksPredictorScreen(
 
             val courseSims = simulatedMarksMap[c.code]
             val effectiveAssessments = c.marks?.assessments.orEmpty().map { m ->
-                val simScore = courseSims?.get(m.name)
-                val actualScored = m.score.toDoubleOrNull() ?: 0.0
-                val effectiveScored = simScore ?: actualScored
-                val maxMark = m.maxMark.toDoubleOrNull() ?: 0.0
-                val weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0
-                val effectiveWeightageMark = if (maxMark > 0.0) (effectiveScored / maxMark) * weightagePercent else (m.weightage.toDoubleOrNull() ?: 0.0)
-
-                M3EAssessmentItem(
-                    title = m.name,
-                    maxMarks = maxMark,
-                    scoredMarks = effectiveScored,
-                    weightagePercent = weightagePercent,
-                    weightageMarks = effectiveWeightageMark,
-                    status = if (simScore != null) "Simulated" else m.status,
-                    component = m.component.orEmpty()
-                )
+                toAssessmentItem(m, courseSims?.get(m.name))
             }
 
             // Inject FAT row if the theory component has no FAT and total weight < 100.
             // Web's createPredictorAssessmentsFromVTOP() does this automatically; we replicate it here.
-            val theoryAsms = effectiveAssessments.filter { !it.component.equals("Lab", ignoreCase = true) }
-            val labAsms = effectiveAssessments.filter { it.component.equals("Lab", ignoreCase = true) }
+            val theoryAsms = effectiveAssessments.filter { !isLabAssessment(it) }
+            val labAsms = effectiveAssessments.filter { isLabAssessment(it) }
             val hasTheoryFat = theoryAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
             val theoryWeight = theoryAsms.sumOf { it.weightagePercent }
             val hasLabFat = labAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
@@ -1909,27 +1949,12 @@ fun M3EMarksPredictorScreen(
                 val courseTargetGrade = targetGradesMap[activeCourseCode] ?: "A"
 
                 val rawAssessments = enrolledCourse.marks?.assessments.orEmpty().map { m ->
-                    val simulated = courseSims[m.name]
-                    val actualScored = m.score.toDoubleOrNull() ?: 0.0
-                    val effectiveScored = simulated ?: actualScored
-                    val maxMark = m.maxMark.toDoubleOrNull() ?: 0.0
-                    val weightagePercent = m.weightagePercent.toDoubleOrNull() ?: 0.0
-                    val effectiveWeightageMark = if (maxMark > 0.0) (effectiveScored / maxMark) * weightagePercent else (m.weightage.toDoubleOrNull() ?: 0.0)
-
-                    M3EAssessmentItem(
-                        title = m.name,
-                        maxMarks = maxMark,
-                        scoredMarks = effectiveScored,
-                        weightagePercent = weightagePercent,
-                        weightageMarks = effectiveWeightageMark,
-                        status = if (simulated != null) "Simulated" else m.status,
-                        component = m.component.orEmpty()
-                    )
+                    toAssessmentItem(m, courseSims[m.name])
                 }
 
                 // Inject pending Theory FAT & Lab FAT rows if not yet published by VTOP
-                val theoryAsms = rawAssessments.filter { !it.component.equals("Lab", ignoreCase = true) }
-                val labAsms = rawAssessments.filter { it.component.equals("Lab", ignoreCase = true) }
+                val theoryAsms = rawAssessments.filter { !isLabAssessment(it) }
+                val labAsms = rawAssessments.filter { isLabAssessment(it) }
                 val hasTheoryFat = theoryAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }
                 val theoryWeight = theoryAsms.sumOf { it.weightagePercent }
                 val hasLabFat = labAsms.any { it.title.contains("FAT", ignoreCase = true) || it.title.contains("Final Assessment", ignoreCase = true) }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
@@ -201,7 +202,7 @@ object Vtop {
         e.load(VtopSession.PATH_ROOT)
 
         when (awaitPageState(e)) {
-            VtopPageState.HOME -> return completeSession(e)
+            VtopPageState.HOME -> return completeSession(e, username)
             VtopPageState.LOGIN -> return runLoginLoop(e, username, password, captchaHandler, maxCaptchaAttempts)
             VtopPageState.LANDING -> {
                 _stage.value = VtopAuthStage.Prelogin
@@ -244,7 +245,7 @@ object Vtop {
             }
 
             when (result) {
-                is LoginResult.Success -> return completeSession(e)
+                is LoginResult.Success -> return completeSession(e, username)
                 is LoginResult.InvalidCaptcha -> {
                     // Reload the login page to pick up a fresh captcha image.
                     _stage.value = VtopAuthStage.LoadingLogin
@@ -262,7 +263,7 @@ object Vtop {
         return result
     }
 
-    private suspend fun completeSession(e: VtopEngine): LoginResult {
+    private suspend fun completeSession(e: VtopEngine, username: String? = null): LoginResult {
         _stage.value = VtopAuthStage.LoadingDashboard
         e.load(VtopSession.PATH_CONTENT)
 
@@ -271,21 +272,26 @@ object Vtop {
             return LoginResult.Failure("Logged in but could not read the VTOP dashboard")
         }
 
-        val csrf = content["csrf"]?.jsonPrimitive?.content.orEmpty()
-        val authorizedIDX = content["authorizedIDX"]?.jsonPrimitive?.content.orEmpty()
-        val winImage = content["winImage"]?.jsonPrimitive?.content
+        val csrf = content["csrf"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }.orEmpty()
+        val authorizedIDX = content["authorizedIDX"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }.orEmpty()
+        val winImage = content["winImage"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
         if (csrf.isBlank() || authorizedIDX.isBlank()) {
             return LoginResult.Failure("VTOP dashboard did not expose a CSRF token")
         }
-        VtopSession.saveContentTokens(csrf, authorizedIDX, winImage)
 
-        // authorizedID is the student's login id; the dashboard exposes it in the form's
-        // action/values. Fall back to the uppercase username, matching the server's behaviour
-        // (AmazeCC-API src/app/api/login/route.ts:156-158).
-        val authorizedID = content["authorizedID"]?.jsonPrimitive?.content
-            ?: VtopSession.authorizedID.value
+        // authorizedID is the student's registration number (from #authorizedID / input[name="authorizedid"]).
+        // Fall back to the uppercase username (matching amazecc-api-hono parseDashboardIdentity) or a
+        // previously stored non-IDX authorizedID before ever falling back to authorizedIDX.
+        val extractedAuthorizedID = content["authorizedID"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }
+        val fallbackUsername = username?.trim()?.takeIf { it.isNotBlank() }?.uppercase()
+        val existingAuthorizedID = VtopSession.authorizedID.value?.takeIf {
+            it.isNotBlank() && it != authorizedIDX
+        }
+        val authorizedID = extractedAuthorizedID
+            ?: fallbackUsername
+            ?: existingAuthorizedID
             ?: authorizedIDX
-        VtopSession.save(csrf, authorizedID, authorizedIDX)
+        VtopSession.save(csrf, authorizedID, authorizedIDX, winImage)
         // Write the `JSESSIONID` out now rather than letting the platform do it on its own
         // schedule: this is the only point where the cookie is known good, and
         // `restoreSessionIfPossible` has nothing to work from if the process dies first.
